@@ -6,6 +6,7 @@ python mnist-reservoir-force-training.py -num_hidden 500 -num_layer 10 -spectral
 
 python mnist-reservoir-force-training.py -num_hidden 500 -num_layer 10 -spectral_radius 0.9 -win_scale 0.1 -comp_type dense -gpu-id 1
 
+MNIST
 2000, 0.9602
 4000, 0.9724
 8000, 0.9809
@@ -14,6 +15,20 @@ python mnist-reservoir-force-training.py -num_hidden 500 -num_layer 10 -spectral
 30000, 0.9881
 40000, 0.9887
 50000, 0.9888
+
+
+num_layer=1 win_scale=0.3 spectral_radius=1.3 leaky_start=0.6 leaky_end=0.1 win_connectivity=0.1 wrec_connectivity=0.1
+fashion MNIST
+1000,   0.8518999814987183
+2000,   0.8676999807357788
+4000,   0.8776999711990356
+8000,   0.8924999833106995
+10000,  0.8955999612808228
+20000,  0.9000999927520752
+30000,  0.902899980545044
+40000,  0.9021999835968018
+50000,  0.9025999903678894
+
 """
 
 import argparse
@@ -29,15 +44,20 @@ import numpy as np
 from tqdm import tqdm
 
 from reservoir import JITDeepReservoir, DeepReservoir
-
-if socket.gethostname() in ['ai01', 'login01']:
-  path = '/home/wusi_lab/wangchaoming/DATA/data'
-elif sys.platform == 'win32':
-  path = 'D:/data'
-else:
-  path = '/mnt/d/data'
-traindata = bd.vision.MNIST(root=path, split='train', download=True)
-testdata = bd.vision.MNIST(root=path, split='test', download=True)
+from data.fashion_mnist.utils import mnist_reader
+X_train, y_train = mnist_reader.load_mnist('data/fashion_mnist/data/fashion', kind='train')
+X_test, y_test = mnist_reader.load_mnist('data/fashion_mnist/data/fashion', kind='t10k')
+X_train = X_train.reshape(-1, 28, 28)
+X_test = X_test.reshape(-1, 28, 28)
+# if socket.gethostname() in ['ai01', 'login01']:
+#   path = '/home/wusi_lab/wangchaoming/DATA/data'
+# elif sys.platform == 'win32':
+#   path = 'D:/data'
+# else:
+#   path = '/mnt/d/data'
+# path = './data'
+# traindata = bd.vision.MNIST(root=path, split='train', download=True)
+# testdata = bd.vision.MNIST(root=path, split='test', download=True)
 
 parser = argparse.ArgumentParser(description='Classify CIFAR')
 parser.add_argument('-num_hidden', default=2000, type=int, help='simulating time-steps')
@@ -51,7 +71,7 @@ parser.add_argument('-win_connectivity', default=0.1, type=float)
 parser.add_argument('-wrec_connectivity', default=0.1, type=float)
 parser.add_argument('-lr', default=0.1, type=float)
 parser.add_argument('-train_stage', default='final_step', type=str)
-parser.add_argument('-comp_type', default='dense', type=str)
+parser.add_argument('-comp_type', default='jit-v1', type=str)
 parser.add_argument('-epoch', default=5, type=int)
 parser.add_argument('-gpu-id', default='0', type=str, help='gpu id')
 parser.add_argument('-save', action='store_true')
@@ -68,9 +88,8 @@ num_out = 10
 
 assert args.train_stage in ['final_step', 'all_steps']
 
-x_train = np.asarray(traindata.data / 255, dtype=bm.float_)
-x_test = np.asarray(testdata.data / 255, dtype=bm.float_)
-y_train = np.asarray(traindata.targets, dtype=bm.int_)
+x_train = np.asarray(X_train / 255, dtype=bm.float_)
+x_test = np.asarray(X_test / 255, dtype=bm.float_)
 
 if args.save:
   out_path = f'logs/force-mnist/{args.comp_type}/'
@@ -149,14 +168,14 @@ def predict(xs):
 
 
 if args.save and os.path.exists(out_path):
-  states = bp.checkpoints.load_pytree(out_path)
+  states = bp.checkpoints.load(out_path)
   acc_max = states['acc']
   print('Old accuracy ', acc_max)
 else:
   acc_max = 0.
 
 
-def train_one_epoch():
+def train_one_epoch(epoch):
   global acc_max
 
   # training
@@ -169,27 +188,28 @@ def train_one_epoch():
   for i in tqdm(range(0, x_train.shape[0], batch_size), desc='Verifying'):
     preds.append(predict(bm.asarray(x_train[i: i + batch_size])))
   preds = bm.concatenate(preds)
-  train_acc = bm.mean(preds == bm.asarray(traindata.targets, dtype=bm.int_))
+  train_acc = bm.mean(preds == bm.asarray(y_train, dtype=bm.int_))
 
   # prediction
   preds = []
   for i in tqdm(range(0, x_test.shape[0], batch_size), desc='Predicting'):
     preds.append(predict(bm.asarray(x_test[i: i + batch_size])))
   preds = bm.concatenate(preds)
-  test_acc = bm.mean(preds == bm.asarray(testdata.targets, dtype=bm.int_))
+  test_acc = bm.mean(preds == bm.asarray(y_test, dtype=bm.int_))
   print(f'Train accuracy {train_acc}, Test accuracy {test_acc}')
 
   if args.save and acc_max < test_acc:
     acc_max = test_acc
-    bp.checkpoints.save_pytree(out_path,
-                               {'reservoir': reservoir.state_dict(),
-                                'readout': readout.state_dict(),
-                                'args': args.__dict__,
-                                'acc': float(test_acc)},
-                               overwrite=True)
+    bp.checkpoints.save(out_path,
+                       {'reservoir': reservoir.state_dict(),
+                        'readout': readout.state_dict(),
+                        'args': args.__dict__,
+                        'acc': float(test_acc)},
+                        step=epoch,
+                        overwrite=True)
 
 
 if __name__ == '__main__':
   for ei in range(args.epoch):
     print(f'Epoch {ei} ...')
-    train_one_epoch()
+    train_one_epoch(ei)

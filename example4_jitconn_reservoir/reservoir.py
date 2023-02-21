@@ -161,7 +161,8 @@ class JITReservoir(bp.DynamicalSystem):
   ):
     super().__init__(name=name, mode=mode)
 
-    assert self.mode.is_a(bm.BatchingMode)
+    # assert self.mode.is_a(bm.BatchingMode)
+    bp.check.is_subclass(self.mode, bm.BatchingMode)
 
     self.features_in = bp.check.is_integer(features_in, min_bound=1)
     self.features_out = bp.check.is_integer(features_out, min_bound=1)
@@ -226,7 +227,9 @@ class JITDeepReservoir(bp.DynamicalSystem):
   ):
     super().__init__(name=name, mode=mode)
 
-    assert self.mode.is_a(bm.BatchingMode)
+    # assert self.mode.is_a(bm.BatchingMode)
+    bp.check.is_subclass(self.mode, bm.BatchingMode)
+
     self.num_layer = bp.check.is_integer(num_layer, min_bound=1)
     self.features_in = bp.check.is_integer(features_in, min_bound=1)
     self.features_out = bp.check.is_integer(features_out, min_bound=1)
@@ -305,7 +308,9 @@ class DeepReservoir(bp.DynamicalSystem):
   ):
     super().__init__(name=name, mode=mode)
 
-    assert self.mode.is_a(bm.BatchingMode)
+    # assert self.mode.is_a(bm.BatchingMode)
+    bp.check.is_subclass(self.mode, bm.BatchingMode)
+
     self.num_layer = bp.check.is_integer(num_layer, min_bound=1)
     self.features_in = bp.check.is_integer(features_in, min_bound=1)
     self.features_out = bp.check.is_integer(features_out, min_bound=1)
