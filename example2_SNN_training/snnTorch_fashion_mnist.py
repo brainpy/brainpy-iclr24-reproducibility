@@ -189,7 +189,7 @@ def compute_classification_accuracy(net, x_data, y_data):
 if __name__ == '__main__':
   num_epochs = 30
   loss_hist = []
-  net = Net(num_inputs, num_hidden, num_outputs)
+  net = Net(num_inputs, num_hidden, num_outputs).to(device)
 
   optimizer = torch.optim.Adam(net.parameters(), lr=1e-3, betas=(0.9, 0.999))
 
@@ -203,14 +203,14 @@ if __name__ == '__main__':
     # Minibatch training loop
     for data, targets in sparse_data_generator(x_train, y_train, batch_size=batch_size, nb_steps=nb_steps,
                                                nb_units=num_inputs):
-      data = torch.tensor(data)
+      data = torch.tensor(data).float()
       targets = torch.tensor(targets)
       data = data.to(device)
       targets = targets.to(device)
 
       # forward pass
       net.train()
-      spk_rec, mem_rec = net(data.float())
+      spk_rec, mem_rec = net(data)
 
       m, _ = torch.max(mem_rec, 0)
       log_p_y = log_softmax_fn(m)
