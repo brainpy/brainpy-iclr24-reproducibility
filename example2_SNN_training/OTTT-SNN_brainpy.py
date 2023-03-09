@@ -23,6 +23,7 @@ import torchvision.transforms as transforms
 import tqdm
 from torchtoolbox.transform import Cutout
 
+# bm.set_platform('cpu')
 bm.set_environment(bm.TrainingMode())
 conv_init = bp.init.KaimingNormal(mode='fan_out', scale=jnp.sqrt(2))
 dense_init = bp.init.Normal(0, 0.01)

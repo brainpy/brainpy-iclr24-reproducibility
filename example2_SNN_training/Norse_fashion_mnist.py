@@ -1,11 +1,29 @@
 # -*- coding: utf-8 -*-
 
+'''
+Reproduce the results of the``spytorch`` tutorial 2 & 3:
+
+- https://github.com/surrogate-gradient-learning/spytorch/blob/master/notebooks/SpyTorchTutorial2.ipynb
+- https://github.com/surrogate-gradient-learning/spytorch/blob/master/notebooks/SpyTorchTutorial3.ipynb
+
+CPU Intel:
+- Test acc:
+- Each epoch: 48-50 s
+
+RTX A6000
+- Test acc: 86.2%
+- Each epoch: 48-50 s
+'''
+
 import torch
 import numpy as np
+import time
 import matplotlib.pyplot as plt
+import torchvision
 
-from norse.torch import LIFParameters, LIFState
+from norse.torch import LIFParameters, LIFState, SpikeLatencyLIFEncoder
 from norse.torch.module.lif import LIFCell, LIFRecurrentCell
+from norse.torch.module.coba_lif import CobaLIFCell, CobaLIFParameters
 
 # Notice the difference between "LIF" (leaky integrate-and-fire) and "LI" (leaky integrator)
 from norse.torch import LICell, LIState
@@ -26,11 +44,13 @@ nb_steps = 100
 batch_size = 256
 data_path = r'./data'
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+# device = torch.device("cpu")
 
 num_inputs = 28*28
 num_hidden = 100
 num_outputs = 10
 
+loss_fn = torch.nn.NLLLoss()
 
 class SNNState(NamedTuple):
     lif0: LIFState
@@ -39,13 +59,14 @@ class SNNState(NamedTuple):
 
 class SNN(torch.nn.Module):
     def __init__(
-        self, input_features, hidden_features, output_features, record=False, dt=0.001
+        self, input_features, hidden_features, output_features, record=False, dt=0.1
     ):
         super(SNN, self).__init__()
-        self.l1 = LIFRecurrentCell(
+        self.l1 = CobaLIFCell(
             input_features,
             hidden_features,
-            p=LIFParameters(alpha=100, v_th=torch.tensor(0.5)),
+            p=CobaLIFParameters(alpha=100, v_thresh=torch.as_tensor(1.), v_reset=torch.as_tensor(0.),
+                                v_rest=torch.as_tensor(0.), e_rev_I=torch.as_tensor(0.)),
             dt=dt,
         )
         self.input_features = input_features
@@ -57,9 +78,10 @@ class SNN(torch.nn.Module):
         self.record = record
 
     def forward(self, x):
-      seq_length, batch_size, _, _, _ = x.shape
+      batch_size, seq_length, _ = x.shape
       s1 = so = None
       voltages = []
+      spikes = []
 
       if self.record:
         self.recording = SNNState(
@@ -75,7 +97,7 @@ class SNN(torch.nn.Module):
         )
 
       for ts in range(seq_length):
-        z = x[ts, :, :, :].view(-1, self.input_features)
+        z = x[:, ts, :].view(-1, self.input_features)
         z, s1 = self.l1(z, s1)
         z = self.fc_out(z)
         vo, so = self.out(z, so)
@@ -86,28 +108,28 @@ class SNN(torch.nn.Module):
           self.recording.readout.v[ts, :] = so.v
           self.recording.readout.i[ts, :] = so.i
         voltages += [vo]
+        spikes += [s1.z]
 
-      return torch.stack(voltages)
+      return torch.stack(voltages), torch.stack(spikes)
 
 
 def decode(x):
   x, _ = torch.max(x, 0)
+
   log_p_y = torch.nn.functional.log_softmax(x, dim=1)
   return log_p_y
 
 
 class Model(torch.nn.Module):
-  def __init__(self, encoder, snn, decoder):
+  def __init__(self, snn, decoder):
     super(Model, self).__init__()
-    self.encoder = encoder
     self.snn = snn
-    self.decoder = decoder
+    self.decoder = decode
 
   def forward(self, x):
-    x = self.encoder(x)
-    x = self.snn(x)
-    log_p_y = self.decoder(x)
-    return log_p_y
+    mem, spk = self.snn(x)
+    log_p_y = self.decoder(mem)
+    return log_p_y, spk, mem
 
 
 
@@ -175,15 +197,12 @@ def sparse_data_generator(X, y, batch_size, nb_steps, nb_units, shuffle=True):
     counter += 1
 
 
-if torch.cuda.is_available():
-    DEVICE = torch.device("cuda")
-else:
-    DEVICE = torch.device("cpu")
-
+# if torch.cuda.is_available():
+#     DEVICE = torch.device("cuda")
+# else:
+#     DEVICE = torch.device("cpu")
+DEVICE = torch.device("cpu")
 model = Model(
-    encoder=SpikeLatencyLIFEncoder(
-        seq_length=T,
-    ),
     snn=SNN(
         input_features=num_inputs,
         hidden_features=num_hidden,
@@ -199,51 +218,81 @@ from tqdm.notebook import tqdm, trange
 EPOCHS = 30  # Increase this number for better performance
 
 
-def train(model, device, train_loader, optimizer, epoch, max_epochs):
+def train(model, device, x_train, y_train, optimizer, epoch, max_epochs):
+    t0 = time.time()
     model.train()
     losses = []
+    iter_cnt = 0
+    for data, target in sparse_data_generator(x_train, y_train, batch_size=batch_size, nb_steps=nb_steps,
+                                                nb_units=num_inputs):
+      data = torch.tensor(data).float()
+      target = torch.tensor(target)
+      data = data.to(device)
+      target = target.to(device)
 
-    for (data, target) in tqdm(train_loader, leave=False):
-        data, target = data.to(device), target.to(device)
-        optimizer.zero_grad()
-        output = model(data)
-        loss = torch.nn.functional.nll_loss(output, target)
-        loss.backward()
-        optimizer.step()
-        losses.append(loss.item())
+      optimizer.zero_grad()
 
+      output, spk, mem = model(data)
+
+      reg_loss = 1e-5 * torch.sum(spk)  # L1 loss on total number of spikes
+      reg_loss += 1e-5 * torch.mean(torch.sum(spk, dim=(0, 1))** 2)  # L2 loss on spikes per neuron
+      loss = loss_fn(output, target) + reg_loss
+      loss.backward()
+      optimizer.step()
+      losses.append(loss.item())
+      if iter_cnt % 50 == 0:
+        print(f"Epoch {epoch}, Iteration {iter_cnt}, Train Set Loss: {loss.item():.2f}")
+      iter_cnt += 1
+
+    t1 = time.time()
     mean_loss = np.mean(losses)
+    print("Epoch %i: loss=%.5f  time: %f" % (epoch, mean_loss, t1 - t0))
     return losses, mean_loss
 
 
-def test(model, device, test_loader, epoch):
+def test(model, device, x_test, y_test, epoch):
   model.eval()
-  test_loss = 0
-  correct = 0
+  accs = []
+  losses = []
   with torch.no_grad():
-    for data, target in test_loader:
-      data, target = data.to(device), target.to(device)
-      output = model(data)
-      test_loss += torch.nn.functional.nll_loss(
-        output, target, reduction="sum"
-      ).item()  # sum up batch loss
-      pred = output.argmax(
-        dim=1, keepdim=True
-      )  # get the index of the max log-probability
-      correct += pred.eq(target.view_as(pred)).sum().item()
+    for data, target in sparse_data_generator(x_test, y_test, batch_size=batch_size, nb_steps=nb_steps,
+                                                nb_units=num_inputs):
+      data = torch.tensor(data).float()
+      target = torch.tensor(target)
+      data = data.to(device)
+      target = target.to(device)
 
-  test_loss /= len(test_loader.dataset)
+      output, spk, mem = model(data)
 
-  accuracy = 100.0 * correct / len(test_loader.dataset)
+      reg_loss = 1e-5 * torch.sum(spk)  # L1 loss on total number of spikes
+      reg_loss += 1e-5 * torch.mean(torch.sum(spk, dim=(0, 1)) ** 2)  # L2 loss on spikes per neuron
+      loss = loss_fn(output, target) + reg_loss
+      losses.append(loss.detach().cpu().numpy())
 
-  return test_loss, accuracy
+      m, _ = torch.max(mem, 0)  # max over time
+      _, am = torch.max(m, 1)  # argmax over output units
+      tmp = np.mean((target == am).detach().cpu().numpy())  # compare to labels
+      accs.append(tmp)
 
+  return np.mean(losses), np.mean(accs)
+
+
+transform = torchvision.transforms.Compose(
+    [
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+    ]
+)
 
 train_dataset = datasets.FashionMNIST(data_path, train=True, download=True)
 test_dataset = datasets.FashionMNIST(data_path, train=True, download=True)
 
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+x_train = np.array(train_dataset.data, dtype=np.float_)
+x_train = x_train.reshape(x_train.shape[0], -1) / 255
+x_test = np.array(test_dataset.data, dtype=np.float_)
+x_test = x_test.reshape(x_test.shape[0], -1) / 255
+y_train = np.array(train_dataset.targets, dtype=np.int_)
+y_test = np.array(test_dataset.targets, dtype=np.int_)
 
 training_losses = []
 mean_losses = []
@@ -252,9 +301,9 @@ accuracies = []
 
 for epoch in trange(EPOCHS):
     training_loss, mean_loss = train(
-        model, DEVICE, train_loader, optimizer, epoch, max_epochs=EPOCHS
+        model, DEVICE, x_train, y_train, optimizer, epoch, max_epochs=EPOCHS
     )
-    test_loss, accuracy = test(model, DEVICE, test_loader, epoch)
+    test_loss, accuracy = test(model, DEVICE, x_test, y_test, epoch)
     training_losses += training_loss
     mean_losses.append(mean_loss)
     test_losses.append(test_loss)

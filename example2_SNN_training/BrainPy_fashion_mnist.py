@@ -7,10 +7,19 @@ Reproduce the results of the``spytorch`` tutorial 2 & 3:
 - https://github.com/surrogate-gradient-learning/spytorch/blob/master/notebooks/SpyTorchTutorial3.ipynb
 
 CPU m1 pro:
-- Test acc 0.860
-- Each epoch: 36-40 s
+- Train acc: 89.6%
+- Test acc: 86.0%
+- Each epoch: 24-25 s
+
+CPU Intel:
+- Each epoch: 46-48 s
+
+RTX A6000
+- Test acc: 86.2%
+- Each epoch: 16-17 s
 
 """
+import time
 
 import brainpy_datasets as bd
 import jax.numpy as jnp
@@ -21,10 +30,69 @@ from matplotlib.gridspec import GridSpec
 import brainpy as bp
 import brainpy.math as bm
 
+from jax.lax import stop_gradient
+
+# bm.set_platform('cpu')
 bm.set_environment(bm.training_mode)
 
+alpha = 0.9
+beta = 0.85
 
-class SNN(bp.Network):
+class SynapticLIF(bp.DynamicalSystemNS):
+  def __init__(self, size,
+               alpha, beta, V_th=1.0, mode=None,
+               spike_fun=bm.surrogate.arctan, spike_grad=None,
+               init_hidden=False, inhibition=False,
+               learn_beta=False, learn_alpha=False, learn_threshold=False, reset_mechanism='subtract'):
+    super().__init__(mode=mode)
+
+    self.size = size
+    self.V_th = V_th
+    self.reset_mechanism = reset_mechanism
+    if learn_alpha:
+      self.alpha = bm.TrainVar(alpha)
+    else:
+      self.alpha = alpha
+    if learn_beta:
+      self.beta = bm.TrainVar(beta)
+    else:
+      self.beta = beta
+
+    self.spike_fun = spike_fun
+
+    assert self.mode.is_parent_of(bm.TrainingMode)
+    self.reset_state(self.mode)
+
+  def update(self, x):
+    self.I_syn.value = self.alpha * self.I_syn + x
+    self.V.value = self.beta * self.V + self.I_syn
+
+    if self.reset_mechanism == 'subtract':
+      spike = self.spike_fun(self.V - self.V_th)
+      spike_no_grad = stop_gradient(spike)
+      self.V.value -= spike_no_grad * self.V_th
+      self.spike.value = spike
+
+    elif self.reset_mechanism == 'zero':
+      spike = self.spike_fun(self.V - self.V_th)
+      spike_no_grad = stop_gradient(spike)
+      self.V.value *= spike_no_grad
+      self.spike.value = spike
+
+    else:
+      spike = self.spike_fun(self.V - self.V_th)
+      self.spike.value = spike
+
+    return spike
+
+  def reset_state(self, batch_size=None):
+    self.V = bp.init.variable_(bm.zeros, self.size, batch_size)
+    self.I_syn = bp.init.variable_(bm.zeros, self.size, batch_size)
+    sp_type = bm.float_ if isinstance(self.mode, bm.TrainingMode) else bool  # the gradient of spike is a float
+    self.spike = bp.init.variable_(lambda s: bm.zeros(s, dtype=sp_type), self.size, batch_size)
+
+
+class SNN(bp.DynamicalSystemNS):
   """
   This class implements a spiking neural network model with three layers:
 
@@ -42,26 +110,25 @@ class SNN(bp.Network):
     self.num_out = num_out
 
     # neuron groups
-    self.i = bp.neurons.InputGroup(num_in)
-    self.r = bp.neurons.LIF(num_rec, tau=10, V_reset=0, V_rest=0, V_th=1.)
-    self.o = bp.neurons.LeakyIntegrator(num_out, tau=5)
+    # self.r = SynapticLIF(num_rec, V_th=1., spike_fun=bm.surrogate.arctan,
+    #                      alpha=alpha, beta=beta, learn_beta=True, learn_alpha=True)
+    # self.o = SynapticLIF(num_out, V_th=1., spike_fun=bm.surrogate.arctan,
+    #                      alpha=alpha, beta=beta, learn_beta=True, learn_alpha=True, reset_mechanism='none')
 
-    # synapse: i->r
-    self.i2r = bp.synapses.Exponential(self.i, self.r, bp.conn.All2All(),
-                                       output=bp.synouts.CUBA(target_var=None), tau=10.,
+    # self.i2r = bp.layers.Dense(self.num_in, self.num_rec)
+    # self.r2o = bp.layers.Dense(self.num_rec, self.num_out, W_initializer=bp.init.KaimingNormal(8.))
+
+    self.r = bp.neurons.LIF(num_rec, tau=10, V_reset=0, V_rest=0, V_th=1.,
+                            input_var=False)
+    self.o = bp.neurons.LeakyIntegrator(num_out, tau=5, input_var=False)
+    self.i2r = bp.experimental.Exponential(bp.conn.All2All(pre=num_in, post=num_rec), tau=10.,
                                        g_max=bp.init.KaimingNormal(scale=2.))
     # synapse: r->o
-    self.r2o = bp.synapses.Exponential(self.r, self.o, bp.conn.All2All(),
-                                       output=bp.synouts.CUBA(target_var=None), tau=10.,
-                                       g_max=bp.init.KaimingNormal(scale=2.))
+    self.r2o = bp.experimental.Exponential(bp.conn.All2All(pre=num_rec, post=num_out), tau=10.,
+                                  g_max=bp.init.KaimingNormal(scale=2.))
 
-    self.model = bp.Sequential(
-      self.i, self.i2r, self.r, self.r2o, self.o
-    )
-
-  def update(self, shared, spike):
-    self.model(shared, spike)
-    return self.o.V.value
+  def update(self, spike):
+    return self.o(self.r2o(self.r(self.i2r(spike))))
 
 
 def plot_voltage_traces(mem, spk=None, dim=(3, 5), spike_height=5):
@@ -75,7 +142,7 @@ def plot_voltage_traces(mem, spk=None, dim=(3, 5), spike_height=5):
       a0 = ax = plt.subplot(gs[i])
     else:
       ax = plt.subplot(gs[i], sharey=a0)
-    ax.plot(mem[i])
+    ax.plot(mem[i, :, :])
     ax.axis("off")
   plt.tight_layout()
   plt.show()
@@ -146,59 +213,80 @@ def sparse_data_generator(X, y, batch_size, nb_steps, nb_units, shuffle=True):
     all_batch = np.concatenate(all_batch).flatten()
     all_times = np.concatenate(all_times).flatten()
     all_units = np.concatenate(all_units).flatten()
-    x_batch = bm.zeros((batch_size, nb_steps, nb_units))
-    x_batch[all_batch, all_times, all_units] = 1.
-    y_batch = jnp.asarray(labels_[batch_index])
+    x_batch = np.zeros((nb_steps, batch_size, nb_units))
+    x_batch[all_times, all_batch, all_units] = 1.
+    y_batch = labels_[batch_index]
     yield x_batch, y_batch
     counter += 1
 
 
-def train(model, x_data, y_data, lr=1e-3, nb_epochs=10, batch_size=128, nb_steps=128, nb_inputs=28 * 28):
-  def loss_fun(predicts, targets):
-    predicts, mon = predicts
+
+class Trainer:
+  def __init__(self, net, lr):
+    self.model = net
+    self.looper = bp.LoopOverTime(net, out_vars=net.r.spike)
+    self.f_grad = bm.grad(self.loss, grad_vars=net.train_vars().unique(), child_objs=net, return_value=True)
+    self.f_opt = bp.optim.Adam(lr=bp.optim.CosineAnnealingLR(lr, T_max=300), train_vars=net.train_vars().unique())
+    self.fit = bm.jit(self.train, child_objs=(self.f_grad, self.f_opt))
+
+  def loss(self, xs, ys):
+    predicts, spikes = self.looper(xs)
     # Here we set up our regularizer loss
     # The strength paramters here are merely a guess and
     # there should be ample room for improvement by
     # tuning these paramters.
-    l1_loss = 1e-5 * jnp.sum(mon['r.spike'])  # L1 loss on total number of spikes
-    l2_loss = 1e-5 * jnp.mean(jnp.sum(jnp.sum(mon['r.spike'], axis=0), axis=0) ** 2)  # L2 loss on spikes per neuron
+    l1_loss = 1e-5 * bm.sum(spikes)  # L1 loss on total number of spikes
+    l2_loss = 1e-5 * bm.mean(bm.sum(bm.sum(spikes, axis=0), axis=0) ** 2)  # L2 loss on spikes per neuron
+    # l2_loss = 1e-5 * bm.mean(bm.sum(spikes, axis=(0, 1)) ** 2)  # L2 loss on spikes per neuron
     # predictions
-    predicts = jnp.max(predicts, axis=1)
-    loss = bp.losses.cross_entropy_loss(predicts, targets)
+    predicts = bm.max(predicts, axis=0)
+    loss = bp.losses.cross_entropy_loss(predicts, ys)
     return loss + l2_loss + l1_loss
 
-  trainer = bp.BPTT(
-    model,
-    loss_fun,
-    optimizer=bp.optim.Adam(lr=lr),
-    monitors={'r.spike': net.r.spike},
-  )
-  trainer.fit(lambda: sparse_data_generator(x_data, y_data, batch_size, nb_steps, nb_inputs),
-              num_epoch=nb_epochs)
-  return trainer.get_hist_metric('fit')
+  def train(self, xs, ys):
+    grads, loss = self.f_grad(xs, ys)
+    self.f_opt.update(grads)
+    return loss
+
+
+def train(model, x_data, y_data, lr=1e-3, nb_epochs=10, batch_size=128, nb_steps=128, nb_inputs=28 * 28):
+  loss = []
+  trainer = Trainer(model, lr)
+  for i in range(nb_epochs):
+    t0 = time.time()
+    for xs, ys in sparse_data_generator(x_data, y_data, batch_size, nb_steps, nb_inputs):
+      trainer.looper.reset_state(xs.shape[1])
+      l = trainer.fit(xs, ys)
+      loss.append(l)
+    print(f'Epoch {i}, {time.time() - t0}, loss: {l}')
+  return loss
 
 
 def compute_classification_accuracy(model, x_data, y_data, batch_size=128, nb_steps=100, nb_inputs=28 * 28):
   """ Computes classification accuracy on supplied data in batches. """
   accs = []
-  runner = bp.DSRunner(model, progress_bar=False)
-  for x_local, y_local in sparse_data_generator(x_data, y_data, batch_size, nb_steps, nb_inputs, shuffle=False):
-    output = runner.predict(inputs=x_local, reset_state=True)
-    m = jnp.max(output, 1)  # max over time
-    am = jnp.argmax(m, 1)  # argmax over output units
-    tmp = jnp.mean(y_local == am)  # compare to labels
+  trainer = Trainer(model, lr=1e-3)
+  for xs, ys in sparse_data_generator(x_data, y_data, batch_size, nb_steps, nb_inputs, shuffle=False):
+    trainer.looper.reset_state(xs.shape[1])
+    predicts, spikes = trainer.looper(xs)
+    m = bm.max(predicts, 0)  # max over time
+    am = bm.argmax(m, 1)  # argmax over output units
+    tmp = bm.mean(ys == am)  # compare to labels
     accs.append(tmp)
   return bm.mean(bm.asarray(accs))
 
 
 def get_mini_batch_results(model, x_data, y_data, batch_size=128, nb_steps=100, nb_inputs=28 * 28):
-  runner = bp.DSRunner(model,
-                       monitors={'r.spike': model.r.spike},
-                       progress_bar=False)
+  # runner = bp.DSRunner(model,
+  #                      monitors={'r.spike': model.r.spike},
+  #                      progress_bar=False)
+  trainer = Trainer(model, lr=1e-3)
   data = sparse_data_generator(x_data, y_data, batch_size, nb_steps, nb_inputs, shuffle=False)
-  x_local, y_local = next(data)
-  output = runner.predict(inputs=x_local, reset_state=True)
-  return output, runner.mon.get('r.spike')
+  xs, ys = next(data)
+  trainer.looper.reset_state(xs.shape[1])
+  predicts, spikes = trainer.looper(xs)
+  # output = runner.predict(inputs=x_local, reset_state=True)
+  return predicts, spikes
 
 
 num_input = 28 * 28
@@ -216,6 +304,8 @@ y_train = np.array(train_dataset.targets, dtype=bm.int_)
 x_test = np.array(test_dataset.data, dtype=bm.float_)
 x_test = x_test.reshape(x_test.shape[0], -1) / 255
 y_test = np.array(test_dataset.targets, dtype=bm.int_)
+
+print('Begin training ...')
 
 # training
 train_losses = train(net, x_train, y_train, lr=1e-3, nb_epochs=30, batch_size=256, nb_steps=100, nb_inputs=28 * 28)

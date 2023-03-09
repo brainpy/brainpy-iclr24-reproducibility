@@ -99,14 +99,16 @@ class EINet(bp.Network):
     super(EINet, self).__init__(E2E, E2I, I2E, I2I, E=E, I=I)
 
 
-net = EINet(scale=10.)
-# simulation
-runner = bp.DSRunner(
-  net,
-  # monitors=['E.spike'],
-  inputs=[('E.input', 20.), ('I.input', 20.)],
-)
-runner.run(10000.)
+if __name__ == '__main__':
 
-# visualization
-# bp.visualize.raster_plot(runner.mon.ts, runner.mon['E.spike'], show=True)
+  net = EINet(scale=10.)
+  # simulation
+  runner = bp.DSRunner(
+    net,
+    # monitors=['E.spike'],
+    inputs=[('E.input', 20.), ('I.input', 20.)],
+  )
+  runner.run(10000.)
+
+  # visualization
+  # bp.visualize.raster_plot(runner.mon.ts, runner.mon['E.spike'], show=True)
