@@ -175,4 +175,4 @@ cython_debug/
 .idea/
 
 /example2_bs_model_for_ai/data/
-/example1_jitconn_reservoir/logs/
+/example4_jitconn_reservoir/logs/
