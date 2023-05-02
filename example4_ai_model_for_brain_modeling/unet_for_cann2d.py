@@ -236,11 +236,12 @@ class UNet(bp.layers.Layer):
 
 parser = argparse.ArgumentParser(description='')
 parser.add_argument('-lr', default=1e-3, type=float)
-parser.add_argument('-batch_size', default=16, type=int)
-parser.add_argument('-epoch', default=500, type=int)
+parser.add_argument('-batch_size', default=64, type=int)
+parser.add_argument('-epoch', default=1000, type=int)
 parser.add_argument('-save', action='store_true')
 parser.add_argument('-train_method', type=str, default='step', choices=['step', 'all'])
 args = parser.parse_args()
+print(args.__dict__)
 
 
 with bm.training_environment():
@@ -301,8 +302,8 @@ data_fs = [
                                   np.zeros((length // 2, 1))],
                                  axis=0)},
   # given a moving bump
-  lambda: {'pos': np.asarray([np.linspace(-np.pi, np.pi, length,),
-                              np.linspace(-np.pi, np.pi, length,)]).T.reshape((length, 1, 2)),
+  lambda: {'pos': np.asarray([np.linspace(-np.pi, np.pi, length, ),
+                              np.linspace(-np.pi, np.pi, length, )]).T.reshape((length, 1, 2)),
            'amp': np.tile(np.random.uniform(2., 20., (1, 1)), (length, 1))},
   # given a moving bump at the first 10 ms, then input disappears
   lambda: {'pos': np.asarray([np.linspace(-np.pi, np.pi, length),
@@ -329,6 +330,8 @@ def generate_data():
     yield all_pos[li], all_amp[li]
 
 
+min_loss = 1e9
+
 for i in range(args.epoch):
   t0 = time.time()
   losses = []
@@ -337,6 +340,14 @@ for i in range(args.epoch):
   for data in generate_data():
     loss = step_fun_train(*data)
     losses.append(loss)
-  print(f'Epoch {i}, time {time.time() - t0:.5f} s, loss {np.mean(losses):.6f}')
+  current_loss = np.mean(losses)
+  print(f'Epoch {i}, time {time.time() - t0:.5f} s, loss {current_loss:.6f}')
 
-
+  if current_loss < min_loss:
+    bp.checkpoints.save_pytree('results/unet-cann-2d.bp',
+                               target={'epoch': i,
+                                       'optimizer': optimizer.state_dict(),
+                                       'model': net.state_dict(),
+                                       'args': args.__dict__},
+                               overwrite=True)
+    min_loss = current_loss
