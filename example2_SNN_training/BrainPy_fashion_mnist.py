@@ -19,18 +19,17 @@ RTX A6000
 - Each epoch: 16-17 s
 
 """
+
 import time
 
+import brainpy as bp
+import brainpy.math as bm
 import brainpy_datasets as bd
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.gridspec import GridSpec
-
-import brainpy as bp
-import brainpy.math as bm
-
 from jax.lax import stop_gradient
+from matplotlib.gridspec import GridSpec
 
 # bm.set_platform('cpu')
 bm.set_environment(bm.training_mode)
@@ -38,12 +37,12 @@ bm.set_environment(bm.training_mode)
 alpha = 0.9
 beta = 0.85
 
+
 class SynapticLIF(bp.DynamicalSystemNS):
-  def __init__(self, size,
-               alpha, beta, V_th=1.0, mode=None,
-               spike_fun=bm.surrogate.arctan, spike_grad=None,
-               init_hidden=False, inhibition=False,
-               learn_beta=False, learn_alpha=False, learn_threshold=False, reset_mechanism='subtract'):
+  def __init__(self, size, alpha, beta, V_th=1.0, mode=None,
+               spike_fun=bm.surrogate.arctan,
+               learn_beta=False, learn_alpha=False,
+               reset_mechanism='subtract'):
     super().__init__(mode=mode)
 
     self.size = size
@@ -104,28 +103,16 @@ class SNN(bp.DynamicalSystemNS):
   def __init__(self, num_in, num_rec, num_out):
     super(SNN, self).__init__()
 
-    # parameters
     self.num_in = num_in
     self.num_rec = num_rec
     self.num_out = num_out
 
-    # neuron groups
-    # self.r = SynapticLIF(num_rec, V_th=1., spike_fun=bm.surrogate.arctan,
-    #                      alpha=alpha, beta=beta, learn_beta=True, learn_alpha=True)
-    # self.o = SynapticLIF(num_out, V_th=1., spike_fun=bm.surrogate.arctan,
-    #                      alpha=alpha, beta=beta, learn_beta=True, learn_alpha=True, reset_mechanism='none')
-
-    # self.i2r = bp.layers.Dense(self.num_in, self.num_rec)
-    # self.r2o = bp.layers.Dense(self.num_rec, self.num_out, W_initializer=bp.init.KaimingNormal(8.))
-
-    self.r = bp.neurons.LIF(num_rec, tau=10, V_reset=0, V_rest=0, V_th=1.,
-                            input_var=False)
-    self.o = bp.neurons.LeakyIntegrator(num_out, tau=5, input_var=False)
     self.i2r = bp.experimental.Exponential(bp.conn.All2All(pre=num_in, post=num_rec), tau=10.,
-                                       g_max=bp.init.KaimingNormal(scale=2.))
-    # synapse: r->o
+                                           g_max=bp.init.KaimingNormal(scale=2.))
+    self.r = bp.neurons.LIF(num_rec, tau=10, V_reset=0, V_rest=0, V_th=1., input_var=False)
     self.r2o = bp.experimental.Exponential(bp.conn.All2All(pre=num_rec, post=num_out), tau=10.,
-                                  g_max=bp.init.KaimingNormal(scale=2.))
+                                           g_max=bp.init.KaimingNormal(scale=2.))
+    self.o = bp.neurons.LeakyIntegrator(num_out, tau=5, input_var=False)
 
   def update(self, spike):
     return self.o(self.r2o(self.r(self.i2r(spike))))
@@ -220,14 +207,12 @@ def sparse_data_generator(X, y, batch_size, nb_steps, nb_units, shuffle=True):
     counter += 1
 
 
-
 class Trainer:
   def __init__(self, net, lr):
     self.model = net
     self.looper = bp.LoopOverTime(net, out_vars=net.r.spike)
-    self.f_grad = bm.grad(self.loss, grad_vars=net.train_vars().unique(), child_objs=net, return_value=True)
+    self.f_grad = bm.grad(self.loss, grad_vars=net.train_vars().unique(), return_value=True)
     self.f_opt = bp.optim.Adam(lr=bp.optim.CosineAnnealingLR(lr, T_max=300), train_vars=net.train_vars().unique())
-    self.fit = bm.jit(self.train, child_objs=(self.f_grad, self.f_opt))
 
   def loss(self, xs, ys):
     predicts, spikes = self.looper(xs)
@@ -243,7 +228,8 @@ class Trainer:
     loss = bp.losses.cross_entropy_loss(predicts, ys)
     return loss + l2_loss + l1_loss
 
-  def train(self, xs, ys):
+  @bm.cls_jit
+  def fit(self, xs, ys):
     grads, loss = self.f_grad(xs, ys)
     self.f_opt.update(grads)
     return loss
@@ -336,5 +322,3 @@ for i in range(nb_plt):
     plt.ylabel("Units")
 plt.tight_layout()
 plt.show()
-
-

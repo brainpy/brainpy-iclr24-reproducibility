@@ -128,3 +128,4 @@ if __name__ == '__main__':
 
   with open('speed_results/pytorch.json', 'w') as f:
     json.dump(speed_res, f, indent=2)
+

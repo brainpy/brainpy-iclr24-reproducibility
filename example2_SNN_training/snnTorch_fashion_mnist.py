@@ -19,23 +19,16 @@ RTX A6000:
 - Time: 44-46 s
 '''
 
-import snntorch as snn
-from snntorch import spikeplot as splt
-from snntorch import spikegen
-from snntorch import surrogate
-from snntorch import functional as SF
-from snntorch import utils
-
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
+import time
 
 import matplotlib.pyplot as plt
 import numpy as np
-import itertools
-import time
+import snntorch as snn
+import torch
+import torch.nn as nn
 from matplotlib.gridspec import GridSpec
+from snntorch import surrogate
+from torchvision import datasets, transforms
 
 alpha = 0.9
 beta = 0.85
@@ -46,9 +39,9 @@ batch_size = 256
 data_path = r'./data'
 # device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 device = torch.device("cpu")
-torch.set_num_threads(1)
+# torch.set_num_threads(1)
 
-num_inputs = 28*28
+num_inputs = 28 * 28
 num_hidden = 100
 num_outputs = 10
 
@@ -56,10 +49,10 @@ num_steps = 100
 
 # Define a transform
 transform = transforms.Compose([
-            transforms.Resize((28, 28)),
-            transforms.Grayscale(),
-            transforms.ToTensor(),
-            transforms.Normalize((0,), (1,))])
+  transforms.Resize((28, 28)),
+  transforms.Grayscale(),
+  transforms.ToTensor(),
+  transforms.Normalize((0,), (1,))])
 
 train_dataset = datasets.FashionMNIST(data_path, train=True, download=True)
 test_dataset = datasets.FashionMNIST(data_path, train=False, download=True)
@@ -68,63 +61,63 @@ test_dataset = datasets.FashionMNIST(data_path, train=False, download=True)
 # Standardize data
 # x_train = torch.tensor(train_dataset.train_data, device=device, dtype=dtype)
 x_train = np.array(train_dataset.data, dtype=np.float_)
-x_train = x_train.reshape(x_train.shape[0], -1)/255
+x_train = x_train.reshape(x_train.shape[0], -1) / 255
 # x_test = torch.tensor(test_dataset.test_data, device=device, dtype=dtype)
 x_test = np.array(test_dataset.data, dtype=np.float_)
-x_test = x_test.reshape(x_test.shape[0], -1)/255
+x_test = x_test.reshape(x_test.shape[0], -1) / 255
 
 # y_train = torch.tensor(train_dataset.train_labels, device=device, dtype=dtype)
 # y_test  = torch.tensor(test_dataset.test_labels, device=device, dtype=dtype)
 y_train = np.array(train_dataset.targets, dtype=np.int_)
-y_test  = np.array(test_dataset.targets, dtype=np.int_)
+y_test = np.array(test_dataset.targets, dtype=np.int_)
 
 
 # Define Network
 class Net(nn.Module):
-   def __init__(self, num_inputs, num_hidden, num_outputs):
-      super().__init__()
+  def __init__(self, num_inputs, num_hidden, num_outputs):
+    super().__init__()
 
-      self.num_inputs = num_inputs  # number of inputs
-      self.num_hidden = num_hidden  # number of hidden neurons
-      self.num_outputs = num_outputs  # number of classes (i.e., output neurons)
+    self.num_inputs = num_inputs  # number of inputs
+    self.num_hidden = num_hidden  # number of hidden neurons
+    self.num_outputs = num_outputs  # number of classes (i.e., output neurons)
 
-      # initialize layers
-      self.i2r = nn.Linear(self.num_inputs, self.num_hidden)
-      self.r = snn.Synaptic(alpha=alpha, beta=beta, learn_beta=True, learn_alpha=True,
-                            spike_grad=surrogate.atan())
-      # self.r = snn.Leaky(beta=beta, learn_beta=True, spike_grad=surrogate.atan())
-      # self.r = snn.LIF(beta=beta, learn_beta=True,
-      #                  spike_grad=surrogate.fast_sigmoid(slope=25))
-      self.r2o = nn.Linear(self.num_hidden, self.num_outputs)
-      self.o = snn.Synaptic(alpha=alpha, beta=beta, learn_beta=True, learn_alpha=True,
-                            spike_grad=surrogate.atan(),
-                            reset_mechanism="none")
-      # self.o = snn.Leaky(beta=beta, learn_beta=True, spike_grad=surrogate.atan(), reset_mechanism="none")
-      # self.o = snn.LIF(beta=beta, learn_beta=True,
-      #                  spike_grad=surrogate.fast_sigmoid(slope=25))
+    # initialize layers
+    self.i2r = nn.Linear(self.num_inputs, self.num_hidden)
+    self.r = snn.Synaptic(alpha=alpha, beta=beta, learn_beta=True, learn_alpha=True,
+                          spike_grad=surrogate.atan())
+    # self.r = snn.Leaky(beta=beta, learn_beta=True, spike_grad=surrogate.atan())
+    # self.r = snn.LIF(beta=beta, learn_beta=True,
+    #                  spike_grad=surrogate.fast_sigmoid(slope=25))
+    self.r2o = nn.Linear(self.num_hidden, self.num_outputs)
+    self.o = snn.Synaptic(alpha=alpha, beta=beta, learn_beta=True, learn_alpha=True,
+                          spike_grad=surrogate.atan(),
+                          reset_mechanism="none")
+    # self.o = snn.Leaky(beta=beta, learn_beta=True, spike_grad=surrogate.atan(), reset_mechanism="none")
+    # self.o = snn.LIF(beta=beta, learn_beta=True,
+    #                  spike_grad=surrogate.fast_sigmoid(slope=25))
 
-   def forward(self, x):
-      syn1, mem1 = self.r.init_synaptic()
-      # mem1 = self.r.init_leaky()
-      syn2, mem2 = self.o.init_synaptic()
-      # mem2 = self.o.init_leaky()
+  def forward(self, x):
+    syn1, mem1 = self.r.init_synaptic()
+    # mem1 = self.r.init_leaky()
+    syn2, mem2 = self.o.init_synaptic()
+    # mem2 = self.o.init_leaky()
 
-      spk1_rec = []  # Record the output trace of spikes
-      mem2_rec = []  # Record the output trace of membrane potential
+    spk1_rec = []  # Record the output trace of spikes
+    mem2_rec = []  # Record the output trace of membrane potential
 
-      for step in range(num_steps):
-        x_timestep = x[:, step, :]
-        cur1 = self.i2r(x_timestep)
-        spk1, syn1, mem1 = self.r(cur1, syn1, mem1)
-        # spk1, mem1 = self.r(cur1, mem1)
-        cur2 = self.r2o(spk1)
-        _, syn2, mem2 = self.o(cur2, syn2, mem2)
-        # _, mem2 = self.o(cur2, mem2)
+    for step in range(num_steps):
+      x_timestep = x[:, step, :]
+      cur1 = self.i2r(x_timestep)
+      spk1, syn1, mem1 = self.r(cur1, syn1, mem1)
+      # spk1, mem1 = self.r(cur1, mem1)
+      cur2 = self.r2o(spk1)
+      _, syn2, mem2 = self.o(cur2, syn2, mem2)
+      # _, mem2 = self.o(cur2, mem2)
 
-        spk1_rec.append(spk1)
-        mem2_rec.append(mem2)
+      spk1_rec.append(spk1)
+      mem2_rec.append(mem2)
 
-      return torch.stack(spk1_rec, dim=0), torch.stack(mem2_rec, dim=0)
+    return torch.stack(spk1_rec, dim=0), torch.stack(mem2_rec, dim=0)
 
 
 def current2firing_time(x, tau=20., thr=0.2, tmax=1.0, epsilon=1e-7):
@@ -196,14 +189,14 @@ def sparse_data_generator(X, y, batch_size, nb_steps, nb_units, shuffle=True):
 # with the target
 
 def print_batch_accuracy(data, targets, train=False):
-    output, _ = net(data.view(batch_size, -1))
-    _, idx = output.sum(dim=0).max(1)
-    acc = np.mean((targets == idx).detach().cpu().numpy())
+  output, _ = net(data.view(batch_size, -1))
+  _, idx = output.sum(dim=0).max(1)
+  acc = np.mean((targets == idx).detach().cpu().numpy())
 
-    if train:
-        print(f"Train set accuracy for a single minibatch: {acc*100:.2f}%")
-    else:
-        print(f"Test set accuracy for a single minibatch: {acc*100:.2f}%")
+  if train:
+    print(f"Train set accuracy for a single minibatch: {acc * 100:.2f}%")
+  else:
+    print(f"Test set accuracy for a single minibatch: {acc * 100:.2f}%")
 
 
 def compute_classification_accuracy(net, x_data, y_data):
@@ -221,6 +214,7 @@ def compute_classification_accuracy(net, x_data, y_data):
     tmp = np.mean((y_local == am).detach().cpu().numpy())  # compare to labels
     accs.append(tmp)
   return np.mean(accs)
+
 
 def plot_voltage_traces(mem, spk=None, dim=(3, 5), spike_height=5):
   gs = GridSpec(*dim)
@@ -258,7 +252,7 @@ if __name__ == '__main__':
     for data, targets in sparse_data_generator(x_train, y_train, batch_size=batch_size, nb_steps=nb_steps,
                                                nb_units=num_inputs):
       data = torch.tensor(data).float()
-      targets = torch.tensor(targets)
+      targets = torch.as_tensor(targets).long()
       data = data.to(device)
       targets = targets.to(device)
 
@@ -298,33 +292,33 @@ if __name__ == '__main__':
     mean_loss = np.mean(local_loss)
     print("Epoch %i: loss=%.5f  time: %f" % (epoch + 1, mean_loss, t1 - t0))
     loss_hist.append(mean_loss)
-      # Test set
-      # with torch.no_grad():
-      #   net.eval()
-      #   # test_data, test_targets = next(iter(test_loader))
-      #   # test_data = test_data.to(device)
-      #   # test_targets = test_targets.to(device)
-      #
-      #
-      #   # Test set forward pass
-      #   test_spk, test_mem = net(test_data.view(batch_size, -1))
-      #
-      #   # Test set loss
-      #   test_loss = torch.zeros((1), dtype=torch.float, device=device)
-      #   for step in range(num_steps):
-      #     test_loss += loss(test_mem[step], test_targets)
-      #   test_loss_hist.append(test_loss.item())
-      #
-      #   # Print train/test loss/accuracy
-      #   if iter_counter % 50 == 0:
-      #     print(f"Epoch {epoch}, Iteration {iter_counter}")
-      #     print(f"Train Set Loss: {loss_hist[counter]:.2f}")
-      #     print(f"Test Set Loss: {test_loss_hist[counter]:.2f}")
-      #     print_batch_accuracy(data, targets, train=True)
-      #     print_batch_accuracy(test_data, test_targets, train=False)
-      #     print("\n")
-      #   counter += 1
-      #   iter_counter += 1
+    # Test set
+    # with torch.no_grad():
+    #   net.eval()
+    #   # test_data, test_targets = next(iter(test_loader))
+    #   # test_data = test_data.to(device)
+    #   # test_targets = test_targets.to(device)
+    #
+    #
+    #   # Test set forward pass
+    #   test_spk, test_mem = net(test_data.view(batch_size, -1))
+    #
+    #   # Test set loss
+    #   test_loss = torch.zeros((1), dtype=torch.float, device=device)
+    #   for step in range(num_steps):
+    #     test_loss += loss(test_mem[step], test_targets)
+    #   test_loss_hist.append(test_loss.item())
+    #
+    #   # Print train/test loss/accuracy
+    #   if iter_counter % 50 == 0:
+    #     print(f"Epoch {epoch}, Iteration {iter_counter}")
+    #     print(f"Train Set Loss: {loss_hist[counter]:.2f}")
+    #     print(f"Test Set Loss: {test_loss_hist[counter]:.2f}")
+    #     print_batch_accuracy(data, targets, train=True)
+    #     print_batch_accuracy(test_data, test_targets, train=False)
+    #     print("\n")
+    #   counter += 1
+    #   iter_counter += 1
 
   print("Training accuracy: %.3f" % (compute_classification_accuracy(net, x_train, y_train)))
   print("Test accuracy: %.3f" % (compute_classification_accuracy(net, x_test, y_test)))
@@ -340,6 +334,7 @@ if __name__ == '__main__':
       spk_rec, mem_rec = net(x_local)
 
       return mem_rec, spk_rec
+
 
   outs, spikes = get_mini_batch_results(net, x_train, y_train)
   # Let's plot the hidden layer spiking activity for some input stimuli

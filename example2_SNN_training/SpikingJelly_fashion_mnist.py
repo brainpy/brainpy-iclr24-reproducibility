@@ -15,23 +15,15 @@ RTX A6000
 - Each epoch: 55-57 s
 '''
 
-import matplotlib.pyplot as plt
+import time
 
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
-from spikingjelly.activation_based import neuron, functional, surrogate, layer, encoding, monitor
-import os
-from torch.cuda import amp
-import sys
-import datetime
-from spikingjelly import visualizing
-
-import numpy as np
-import time
 from matplotlib.gridspec import GridSpec
+from spikingjelly.activation_based import neuron, functional, surrogate, layer, monitor
+from torchvision import datasets, transforms
 
 num_inputs = 28 * 28
 num_hidden = 100
@@ -105,7 +97,6 @@ class SynapticLIFNode(neuron.IFNode):
     self.reset_mechanism = reset_mechanism
     self.alpha = alpha
     self.beta = beta
-
 
   def single_step_forward(self, x: torch.Tensor):
     if self.training:
@@ -273,10 +264,10 @@ if __name__ == '__main__':
     iter_cnt = 1
     t0 = time.time()
     for data, targets in sparse_data_generator(x_train, y_train, batch_size=batch_size, nb_steps=nb_steps,
-                                            nb_units=num_inputs):
+                                               nb_units=num_inputs):
       functional.reset_net(net)
       data = torch.tensor(data).float()
-      targets = torch.tensor(targets)
+      targets = torch.tensor(targets).long()
       data = data.to(device)
       targets = targets.to(device)
 
