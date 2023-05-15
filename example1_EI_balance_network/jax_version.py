@@ -52,7 +52,7 @@ class LIF(bp.NeuGroup):
 
 
 class ExpCOBA(bp.TwoEndConn):
-  def __init__(self, pre, post, conn, E, w, tau, method='exp_auto', **kwargs):
+  def __init__(self, pre, post, conn, E, w, tau, **kwargs):
     super(ExpCOBA, self).__init__(pre, post, conn=conn, **kwargs)
 
     # parameters
@@ -68,6 +68,7 @@ class ExpCOBA(bp.TwoEndConn):
   def derivative(self, g, t):
     dg = - g / self.tau
     return dg
+
   def update(self, tdi):
     _t, _dt = tdi.t, tdi.dt
     post_vs = (self.pre.spike @ self.conn_mat) * self.w
@@ -81,32 +82,26 @@ class EINet(bp.Network):
     num_exc = int(3200 * scale)
     num_inh = int(800 * scale)
 
-    # neurons
     pars = dict(V_rest=-60., V_th=-50., V_reset=-60., tau=20., tau_ref=5.,
                 V_initializer=bp.init.Normal(-55., 2.))
-    E = bp.neurons.LIF(num_exc, **pars, method=method)
-    I = bp.neurons.LIF(num_inh, **pars, method=method)
+    N = bp.neurons.LIF(num_exc + num_inh, **pars, method=method)
+    E = bp.synapses.Exponential(N[:num_exc], N, bp.conn.FixedProb(prob=0.02),
+                                g_max=0.6 / scale, output=bp.synouts.COBA(E=0.),
+                                tau=5., method=method)
+    I = bp.synapses.Exponential(N[num_exc:], N, bp.conn.FixedProb(prob=0.02),
+                                g_max=6.7 / scale, output=bp.synouts.COBA(E=-80.),
+                                tau=10., method=method)
 
-    # synapses
-    we = 0.6 / scale  # excitatory synaptic weight (voltage)
-    wi = 6.7 / scale  # inhibitory synaptic weight
-    E2E = ExpCOBA(E, E, bp.conn.FixedProb(prob=0.02), E=0., w=we, tau=5., method=method)
-    E2I = ExpCOBA(E, I, bp.conn.FixedProb(prob=0.02), E=0., w=we, tau=5., method=method)
-    I2E = ExpCOBA(I, E, bp.conn.FixedProb(prob=0.02), E=-80., w=wi, tau=10., method=method)
-    I2I = ExpCOBA(I, I, bp.conn.FixedProb(prob=0.02), E=-80., w=wi, tau=10., method=method)
-
-    super(EINet, self).__init__(E2E, E2I, I2E, I2I, E=E, I=I)
+    super(EINet, self).__init__(E, I, N=N)
 
 
 if __name__ == '__main__':
-  net = EINet(scale=10.)
+  net = EINet(scale=5.)
   # simulation
   runner = bp.DSRunner(
-    net,
-    monitors=['E.spike'],
-    inputs=[('E.input', 20.), ('I.input', 20.)]
+    net, inputs=[('N.input', 20.)]
   )
-  runner.run(10000.)
+  runner.run(5000.)
 
   # bp.visualize.raster_plot(runner.mon.ts, runner.mon['E.spike'], show=True)
 
