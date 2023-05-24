@@ -2,6 +2,7 @@
 '''
 This script should be run on GPU.
 '''
+
 import time
 
 import brainpy as bp

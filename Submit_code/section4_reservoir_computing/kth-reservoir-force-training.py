@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
 
-import sys
 import argparse
-import functools
 import math
 import os
-import socket
 
 import brainpy as bp
 import brainpy.math as bm
@@ -149,8 +146,7 @@ rls = bp.algorithms.RLS(alpha=args.lr)
 rls.register_target(readout.num_in)
 
 
-@functools.partial(bm.jit, static_argnums=(2, 3))
-@bm.to_object(child_objs=(reservoir, readout, rls))
+@bm.jit(static_argnums=(2, 3))
 def train_fun(x, y, reset, train):
   if reset:
     reservoir.reset_state(1)
@@ -165,8 +161,7 @@ def train_fun(x, y, reset, train):
     return None
 
 
-@functools.partial(bm.jit, static_argnums=(1, 2))
-@bm.to_object(child_objs=(reservoir, readout))
+@bm.jit(static_argnums=(1, 2))
 def predict(x, reset, state):
   if reset:
     reservoir.reset_state(1)
@@ -204,7 +199,6 @@ def train_all_steps(xs, resets, states, targets):
   frame_acc = np.mean(preds_at_frame == targets_at_frame)
   stream_acc = np.mean(preds_at_stream == targets_at_steam)
   return frame_acc, stream_acc
-
 
 
 def predict_all_steps(data, resets, states, targets):
@@ -259,4 +253,3 @@ for ii in range(args.epoch):
                                 'stream_test_acc': float(stream_test_acc)},
                                overwrite=True)
     stream_test_acc_max = stream_test_acc
-

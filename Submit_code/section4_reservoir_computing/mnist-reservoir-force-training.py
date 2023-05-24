@@ -3,20 +3,14 @@
 import argparse
 import math
 import os
-import socket
-import sys
 
 import brainpy as bp
 import brainpy.math as bm
-
 import brainpy_datasets as bd
 import numpy as np
 from tqdm import tqdm
 
-from reservoir import JITDeepReservoir, DeepReservoir, SparseReservoir, \
-                      JITDeepReservoir_scaling_SR, JITDeepReservoir_scaling_dual
-
-os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
+from reservoir import JITDeepReservoir, DeepReservoir, SparseReservoir
 
 root = r"./data"
 train_dataset = bd.vision.FashionMNIST(root, split='train', download=True)
@@ -29,7 +23,6 @@ y_train = np.array(train_dataset.targets, dtype=bm.int_)
 x_test = np.array(test_dataset.data, dtype=bm.float_)
 x_test = x_test.reshape((-1, 28, 28)) / 255
 y_test = np.array(test_dataset.targets, dtype=bm.int_)
-
 
 parser = argparse.ArgumentParser(description='Classify CIFAR')
 parser.add_argument('-num_hidden', default=2000, type=int, help='simulating time-steps')
@@ -119,7 +112,6 @@ rls.register_target(readout.num_in)
 
 
 @bm.jit
-@bm.to_object(child_objs=(reservoir, readout, rls))
 def train_step(xs, y):
   reservoir.reset_state(1)
   y = bm.expand_dims(bm.one_hot(y, num_out, dtype=bm.float_), 0)
@@ -142,7 +134,6 @@ def train_step(xs, y):
 
 
 @bm.jit
-@bm.to_object(child_objs=(reservoir, readout))
 def predict(xs):
   reservoir.reset_state(xs.shape[0])
   for x in xs.transpose(1, 0, 2):
@@ -186,10 +177,10 @@ def train_one_epoch(epoch):
   if args.save and acc_max < test_acc:
     acc_max = test_acc
     bp.checkpoints.save(out_path,
-                       {'reservoir': reservoir.state_dict(),
-                        'readout': readout.state_dict(),
-                        'args': args.__dict__,
-                        'acc': float(test_acc)},
+                        {'reservoir': reservoir.state_dict(),
+                         'readout': readout.state_dict(),
+                         'args': args.__dict__,
+                         'acc': float(test_acc)},
                         step=epoch,
                         overwrite=True)
 

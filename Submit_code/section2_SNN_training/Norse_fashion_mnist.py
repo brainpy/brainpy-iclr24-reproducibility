@@ -12,7 +12,6 @@ from norse.torch import LICell, LIState
 from torchvision import datasets
 from typing import NamedTuple
 
-
 T = 100
 LR = 1e-3
 alpha = 0.9
@@ -25,71 +24,72 @@ data_path = r'./data'
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 # torch.set_num_threads(4)
 
-num_inputs = 28*28
+num_inputs = 28 * 28
 num_hidden = 100
 num_outputs = 10
 
 loss_fn = torch.nn.NLLLoss()
 
+
 class SNNState(NamedTuple):
-    lif0: LIFState
-    readout: LIState
+  lif0: LIFState
+  readout: LIState
 
 
 class SNN(torch.nn.Module):
-    def __init__(
-        self, input_features, hidden_features, output_features, record=False, dt=0.1
-    ):
-        super(SNN, self).__init__()
-        self.l1 = CobaLIFCell(
-            input_features,
-            hidden_features,
-            p=CobaLIFParameters(alpha=100, v_thresh=torch.as_tensor(1.), v_reset=torch.as_tensor(0.),
-                                v_rest=torch.as_tensor(0.), e_rev_I=torch.as_tensor(0.)),
-            dt=dt,
-        )
-        self.input_features = input_features
-        self.fc_out = torch.nn.Linear(hidden_features, output_features, bias=False)
-        self.out = LICell(dt=dt)
+  def __init__(
+      self, input_features, hidden_features, output_features, record=False, dt=0.1
+  ):
+    super(SNN, self).__init__()
+    self.l1 = CobaLIFCell(
+      input_features,
+      hidden_features,
+      p=CobaLIFParameters(alpha=100, v_thresh=torch.as_tensor(1.), v_reset=torch.as_tensor(0.),
+                          v_rest=torch.as_tensor(0.), e_rev_I=torch.as_tensor(0.)),
+      dt=dt,
+    )
+    self.input_features = input_features
+    self.fc_out = torch.nn.Linear(hidden_features, output_features, bias=False)
+    self.out = LICell(dt=dt)
 
-        self.hidden_features = hidden_features
-        self.output_features = output_features
-        self.record = record
+    self.hidden_features = hidden_features
+    self.output_features = output_features
+    self.record = record
 
-    def forward(self, x):
-      batch_size, seq_length, _ = x.shape
-      s1 = so = None
-      voltages = []
-      spikes = []
+  def forward(self, x):
+    batch_size, seq_length, _ = x.shape
+    s1 = so = None
+    voltages = []
+    spikes = []
 
+    if self.record:
+      self.recording = SNNState(
+        LIFState(
+          z=torch.zeros(seq_length, batch_size, self.hidden_features),
+          v=torch.zeros(seq_length, batch_size, self.hidden_features),
+          i=torch.zeros(seq_length, batch_size, self.hidden_features),
+        ),
+        LIState(
+          v=torch.zeros(seq_length, batch_size, self.output_features),
+          i=torch.zeros(seq_length, batch_size, self.output_features),
+        ),
+      )
+
+    for ts in range(seq_length):
+      z = x[:, ts, :].view(-1, self.input_features)
+      z, s1 = self.l1(z, s1)
+      z = self.fc_out(z)
+      vo, so = self.out(z, so)
       if self.record:
-        self.recording = SNNState(
-          LIFState(
-            z=torch.zeros(seq_length, batch_size, self.hidden_features),
-            v=torch.zeros(seq_length, batch_size, self.hidden_features),
-            i=torch.zeros(seq_length, batch_size, self.hidden_features),
-          ),
-          LIState(
-            v=torch.zeros(seq_length, batch_size, self.output_features),
-            i=torch.zeros(seq_length, batch_size, self.output_features),
-          ),
-        )
+        self.recording.lif0.z[ts, :] = s1.z
+        self.recording.lif0.v[ts, :] = s1.v
+        self.recording.lif0.i[ts, :] = s1.i
+        self.recording.readout.v[ts, :] = so.v
+        self.recording.readout.i[ts, :] = so.i
+      voltages += [vo]
+      spikes += [s1.z]
 
-      for ts in range(seq_length):
-        z = x[:, ts, :].view(-1, self.input_features)
-        z, s1 = self.l1(z, s1)
-        z = self.fc_out(z)
-        vo, so = self.out(z, so)
-        if self.record:
-          self.recording.lif0.z[ts, :] = s1.z
-          self.recording.lif0.v[ts, :] = s1.v
-          self.recording.lif0.i[ts, :] = s1.i
-          self.recording.readout.v[ts, :] = so.v
-          self.recording.readout.i[ts, :] = so.i
-        voltages += [vo]
-        spikes += [s1.z]
-
-      return torch.stack(voltages), torch.stack(spikes)
+    return torch.stack(voltages), torch.stack(spikes)
 
 
 def decode(x):
@@ -109,7 +109,6 @@ class Model(torch.nn.Module):
     mem, spk = self.snn(x)
     log_p_y = self.decoder(mem)
     return log_p_y, spk, mem
-
 
 
 def current2firing_time(x, tau=20., thr=0.2, tmax=1.0, epsilon=1e-7):
@@ -154,35 +153,35 @@ def sparse_data_generator(X, y, batch_size, nb_steps, nb_units, shuffle=True):
 
 
 def train(model, device, x_train, y_train, optimizer, epoch, max_epochs):
-    t0 = time.time()
-    model.train()
-    losses = []
-    iter_cnt = 0
-    for data, target in sparse_data_generator(x_train, y_train, batch_size=batch_size, nb_steps=nb_steps,
-                                              nb_units=num_inputs):
-      data = torch.tensor(data).float()
-      target = torch.tensor(target)
-      data = data.to(device)
-      target = target.to(device)
+  t0 = time.time()
+  model.train()
+  losses = []
+  iter_cnt = 0
+  for data, target in sparse_data_generator(x_train, y_train, batch_size=batch_size, nb_steps=nb_steps,
+                                            nb_units=num_inputs):
+    data = torch.tensor(data).float()
+    target = torch.tensor(target)
+    data = data.to(device)
+    target = target.to(device)
 
-      optimizer.zero_grad()
+    optimizer.zero_grad()
 
-      output, spk, mem = model(data)
+    output, spk, mem = model(data)
 
-      reg_loss = 1e-5 * torch.sum(spk)  # L1 loss on total number of spikes
-      reg_loss += 1e-5 * torch.mean(torch.sum(spk, dim=(0, 1)) ** 2)  # L2 loss on spikes per neuron
-      loss = loss_fn(output, target) + reg_loss
-      loss.backward()
-      optimizer.step()
-      losses.append(loss.item())
-      if iter_cnt % 50 == 0:
-        print(f"Epoch {epoch}, Iteration {iter_cnt}, Train Set Loss: {loss.item():.2f}")
-      iter_cnt += 1
+    reg_loss = 1e-5 * torch.sum(spk)  # L1 loss on total number of spikes
+    reg_loss += 1e-5 * torch.mean(torch.sum(spk, dim=(0, 1)) ** 2)  # L2 loss on spikes per neuron
+    loss = loss_fn(output, target) + reg_loss
+    loss.backward()
+    optimizer.step()
+    losses.append(loss.item())
+    if iter_cnt % 50 == 0:
+      print(f"Epoch {epoch}, Iteration {iter_cnt}, Train Set Loss: {loss.item():.2f}")
+    iter_cnt += 1
 
-    t1 = time.time()
-    mean_loss = np.mean(losses)
-    print("Epoch %i: loss=%.5f  time: %f" % (epoch, mean_loss, t1 - t0))
-    return losses, mean_loss, t1 - t0
+  t1 = time.time()
+  mean_loss = np.mean(losses)
+  print("Epoch %i: loss=%.5f  time: %f" % (epoch, mean_loss, t1 - t0))
+  return losses, mean_loss, t1 - t0
 
 
 def test(model, device, x_test, y_test, epoch):
@@ -214,12 +213,12 @@ def test(model, device, x_test, y_test, epoch):
 
 if __name__ == '__main__':
   model = Model(
-      snn=SNN(
-          input_features=num_inputs,
-          hidden_features=num_hidden,
-          output_features=num_outputs,
-      ),
-      decoder=decode,
+    snn=SNN(
+      input_features=num_inputs,
+      hidden_features=num_hidden,
+      output_features=num_outputs,
+    ),
+    decoder=decode,
   ).to(device)
 
   optimizer = torch.optim.Adam(model.parameters(), lr=LR)
@@ -228,12 +227,11 @@ if __name__ == '__main__':
 
   EPOCHS = 5  # Increase this number for better performance
 
-
   transform = torchvision.transforms.Compose(
-      [
-          torchvision.transforms.ToTensor(),
-          torchvision.transforms.Normalize((0.1307,), (0.3081,)),
-      ]
+    [
+      torchvision.transforms.ToTensor(),
+      torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+    ]
   )
 
   train_dataset = datasets.FashionMNIST(data_path, train=True, download=True)
@@ -253,15 +251,15 @@ if __name__ == '__main__':
   times_list = []
 
   for epoch in trange(EPOCHS):
-      training_loss, mean_loss, run_time = train(
-          model, device, x_train, y_train, optimizer, epoch, max_epochs=EPOCHS
-      )
-      test_loss, accuracy = test(model, device, x_test, y_test, epoch)
-      training_losses += training_loss
-      mean_losses.append(mean_loss)
-      test_losses.append(test_loss)
-      accuracies.append(accuracy)
-      times_list.append(run_time)
+    training_loss, mean_loss, run_time = train(
+      model, device, x_train, y_train, optimizer, epoch, max_epochs=EPOCHS
+    )
+    test_loss, accuracy = test(model, device, x_test, y_test, epoch)
+    training_losses += training_loss
+    mean_losses.append(mean_loss)
+    test_losses.append(test_loss)
+    accuracies.append(accuracy)
+    times_list.append(run_time)
 
   times = np.asarray(times_list)
   print(f'Average time per epoch: {np.mean(times)}')

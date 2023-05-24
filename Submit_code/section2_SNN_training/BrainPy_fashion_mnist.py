@@ -2,22 +2,20 @@
 
 import time
 
+import brainpy as bp
+import brainpy.math as bm
 import brainpy_datasets as bd
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
 
-import brainpy as bp
-import brainpy.math as bm
-
-from jax.lax import stop_gradient
-
 bm.set_platform('cpu')
-bm.set_environment(bm.training_mode)
+bm.set(bm.training_mode)
 
 alpha = 0.9
 beta = 0.85
+
 
 class SNN(bp.DynamicalSystemNS):
   """
@@ -40,10 +38,10 @@ class SNN(bp.DynamicalSystemNS):
                             input_var=False)
     self.o = bp.neurons.LeakyIntegrator(num_out, tau=5, input_var=False)
     self.i2r = bp.experimental.Exponential(bp.conn.All2All(pre=num_in, post=num_rec), tau=10.,
-                                       g_max=bp.init.KaimingNormal(scale=2.))
+                                           g_max=bp.init.KaimingNormal(scale=2.))
     # synapse: r->o
     self.r2o = bp.experimental.Exponential(bp.conn.All2All(pre=num_rec, post=num_out), tau=10.,
-                                  g_max=bp.init.KaimingNormal(scale=2.))
+                                           g_max=bp.init.KaimingNormal(scale=2.))
 
   def update(self, spike):
     return self.o(self.r2o(self.r(self.i2r(spike))))
@@ -199,7 +197,8 @@ y_test = np.array(test_dataset.targets, dtype=bm.int_)
 print('Begin training ...')
 
 # training
-train_losses, train_times = train(net, x_train, y_train, lr=1e-3, nb_epochs=10, batch_size=256, nb_steps=100, nb_inputs=28 * 28)
+train_losses, train_times = train(net, x_train, y_train, lr=1e-3, nb_epochs=10, batch_size=256, nb_steps=100,
+                                  nb_inputs=28 * 28)
 
 times = np.asarray(train_times)
 print(f'Average time per epoch: {np.mean(times)}')
@@ -231,5 +230,3 @@ for i in range(nb_plt):
     plt.ylabel("Units")
 plt.tight_layout()
 plt.show()
-
-

@@ -184,3 +184,4 @@ if __name__ == '__main__':
   plt.ylabel('Output Activity')
   plt.legend()
   plt.savefig('./EI_RNN_output_act.png', dpi=300)
+  # plt.show()

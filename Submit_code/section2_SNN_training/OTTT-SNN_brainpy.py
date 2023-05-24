@@ -16,8 +16,10 @@ import torchvision.transforms as transforms
 import tqdm
 from torchtoolbox.transform import Cutout
 
-bm.set_platform('cpu')
+
+bm.set_platform('gpu')
 bm.set_environment(bm.TrainingMode())
+
 conv_init = bp.init.KaimingNormal(mode='fan_out', scale=jnp.sqrt(2))
 dense_init = bp.init.Normal(0, 0.01)
 
@@ -191,7 +193,7 @@ class OnlineSpikingVGG(bp.DynamicalSystemNS):
           if first_conv:
             first_conv = False
           elif self.grad_with_rate:
-              conv2d = WrappedSNNOp(conv2d)
+            conv2d = WrappedSNNOp(conv2d)
           layers += [conv2d,
                      self.neuron_model(neuron_sizes[neuron_i], **self.neuron_pars),
                      Scale(2.74)]
@@ -512,7 +514,6 @@ def classify_cifar():
 
   t_step = args.T
 
-  @bm.to_object(child_objs=net)
   def single_step(x, y, fit=True):
     bp.share['fit'] = fit
     out = net(x)
@@ -526,7 +527,6 @@ def classify_cifar():
     return l, out
 
   @bm.jit
-  @bm.to_object(child_objs=net)
   def inference_fun(x, y):
     l, out = bm.for_loop(lambda _: single_step(x, y, False),
                          jnp.arange(t_step),
@@ -552,7 +552,6 @@ def classify_cifar():
     raise NotImplementedError(args.opt)
 
   @bm.jit
-  @bm.to_object(child_objs=(optimizer, grad_fun))
   def train_fun(x, y):
     if args.online_update:
       final_loss, final_out = 0., 0.

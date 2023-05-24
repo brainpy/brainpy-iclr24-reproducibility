@@ -99,7 +99,8 @@ class Net(nn.Module):
       neuron.LIFNode(surrogate_function=surrogate.ATan()),
       layer.SynapseFilter(tau=2., learnable=True),
       layer.Linear(num_hidden, num_outputs),
-      neuron.LIFNode(surrogate_function=surrogate.ATan(), v_reset=None, v_threshold=0., decay_input=True,
+      neuron.LIFNode(surrogate_function=surrogate.ATan(),
+                     v_reset=None, v_threshold=0., decay_input=True,
                      store_v_seq=True)
     )
 

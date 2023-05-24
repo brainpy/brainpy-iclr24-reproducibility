@@ -1,15 +1,18 @@
 # -*- coding: utf-8 -*-
 
 import time
+
 import brainpy as bp
 import brainpy.math as bm
 import jax
-from jax.experimental import sparse
 import torch
+from jax.experimental import sparse
 
 # If cpu
 bm.set_platform('cpu')
 device = torch.device('cpu')
+
+
 # If gpu
 # bm.set_platform('gpu')
 # bm.disable_gpu_memory_preallocation()
@@ -96,6 +99,7 @@ def brainpy_event_op(size, prob, spikes):
   vector = bm.random.random(size) < spikes
   sparse_A = bp.conn.FixedProb(prob=prob, allow_multi_conn=True)(size, size).require('pre2post')
   out = bm.random.random(size).value
+
   def func(i, value):
     return bm.event.csrmv(1., sparse_A[0], sparse_A[1], events=vector, shape=(size, size),
                           transpose=True)
