@@ -38,6 +38,7 @@ print(args)
 
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_id
 
+# Please download the KTH file from the internet
 path = './data/kth_hog8x8_pca2k_labels.mat'
 data = hdf5storage.loadmat(path)['kth_hog_pca2k_labels']
 data, labels = [x for x in data[0]], [x for x in data[1]]
