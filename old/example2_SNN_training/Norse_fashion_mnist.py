@@ -35,7 +35,7 @@ beta = 0.85
 time_step = 1e-3
 nb_steps = 100
 batch_size = 256
-data_path = r'./data'
+data_path = r'data'
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 # device = torch.device("cpu")
 

@@ -25,7 +25,6 @@ Submit_code
 │   ├── SpikingJelly_fashion_mnist.py
 │   ├── OTTT-SNN_brainpy.py
 ├── section3_working_memory
-│   ├── models.py
 │   ├── utils.py
 │   ├── spiking_version.py
 │   ├── rate_version.py

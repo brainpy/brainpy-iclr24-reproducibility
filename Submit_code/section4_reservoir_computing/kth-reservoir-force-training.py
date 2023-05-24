@@ -254,3 +254,4 @@ for ii in range(args.epoch):
                                 'stream_test_acc': float(stream_test_acc)},
                                overwrite=True)
     stream_test_acc_max = stream_test_acc
+

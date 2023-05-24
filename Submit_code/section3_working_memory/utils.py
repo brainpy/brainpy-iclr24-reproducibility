@@ -215,12 +215,10 @@ def verify_lif(net, ds, fn=None, num_show=5, sps_inc=10.):
 
   # looping the model over time
   outs = (net.r.spike, net.r.V)
-  if hasattr(net.r2r, 'g'):
-    outs += (net.r2r.g,)
   looper = bp.LoopOverTime(net, out_vars=outs)
 
   for i in range(num_show):
-    fig, gs = bp.visualize.get_figure(4 + int(hasattr(net.r2r, 'g')), 1, 2., 10.)
+    fig, gs = bp.visualize.get_figure(4, 1, 2., 10.)
 
     x, _ = ds[i]
     ts = np.arange(0, x.shape[0]) * ds.dt
@@ -260,13 +258,5 @@ def verify_lif(net, ds, fn=None, num_show=5, sps_inc=10.):
     ax_out.set_xlabel('Time [ms]')
     ax_out.set_xlim(0., max_t)
     plt.legend()
-
-    if hasattr(net.r2r, 'g'):
-      conds = rrr[2]
-      ax = fig.add_subplot(gs[4, 0])
-      for i in range(0, net.r.num, 10):
-        plt.plot(ts, conds[:, 0, i])
-      ax.set_xlim(0., max_t)
-      ax.set_ylabel('Synapse Conductance')
 
     plt.show()

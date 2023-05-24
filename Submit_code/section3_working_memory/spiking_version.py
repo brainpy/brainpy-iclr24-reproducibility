@@ -3,6 +3,7 @@ import brainpy.math as bm
 import brainpy_datasets as bd
 import jax
 
+import numpy as np
 import utils
 from utils import bptt, DMS
 
@@ -73,10 +74,6 @@ class GIF(bp.NeuGroupNS):
   def dV(self, V, t, I_ext):
     return (- V + self.V_rest + self.R * I_ext) / self.tau
 
-  @property
-  def derivative(self):
-    return bp.JointEq(self.dI1, self.dI2, self.dVth, self.dV)
-
   def update(self, x=None):
     t = bp.share.load('t')
     dt = bp.share.load('dt')
@@ -104,6 +101,44 @@ class GIF(bp.NeuGroupNS):
     self.I2.value = I2
     self.V.value = V
     return spike
+
+
+class GLIF_Net(bp.DynamicalSystemNS):
+  def __init__(self, num_in, num_exc, num_inh, num_out, tau_o=1e1, tau_ext=1e1,
+               spike_fun=bm.surrogate.relu_grad, gif_pars=None,
+               inits: bp.init.Initializer = bp.init.KaimingNormal(), ):
+    super().__init__()
+
+    # parameters
+    gif_pars = dict() if gif_pars is None else gif_pars
+    self.gif_pars = gif_pars
+    self.num_in = num_in
+    self.num_out = num_out
+    num_rec = num_exc + num_inh
+    self.i2r = bp.layers.Dense(num_in, num_rec, W_initializer=inits)
+    self.r2o = bp.layers.Dense(num_rec, num_out, W_initializer=inits)
+    self.ext = bp.neurons.Leaky(num_rec, tau=tau_ext)
+
+    self.w_rr = bm.TrainVar(bp.init.parameter(inits, (num_rec, num_rec)))
+    self.w_rr[:num_exc] /= (num_exc / num_inh)
+    self.b_rr = bm.TrainVar(bm.zeros(num_rec))
+    mask = np.tile([1] * num_exc + [-1] * num_inh, (num_rec, 1)).T
+    np.fill_diagonal(mask, 0)
+    self.mask = bm.asarray(mask, dtype=bm.float_)
+
+    self.r = GIF(num_rec,
+                 V_rest=0.,
+                 V_th_inf=1.,
+                 spike_fun=spike_fun,
+                 V_initializer=bp.init.ZeroInit(),
+                 Vth_initializer=bp.init.OneInit(1.),
+                 **gif_pars)
+    self.o = bp.neurons.Leaky(num_out, tau=tau_o)
+
+  def update(self, spikes):
+    rec_current = self.r.spike @ (bm.abs(self.w_rr) * self.mask) + self.b_rr
+    ext = self.ext(self.i2r(spikes) + rec_current)
+    return self.o(self.r2o(self.r(ext)))
 
 
 class Trainer:
@@ -164,49 +199,24 @@ class Trainer:
     return loss, aux
 
 
-class GLIF_Exp(bp.DynamicalSystemNS):
-  def __init__(self, num_in, num_rec, num_out, tau_o=1e1, tau_ext=1e1,
-               spike_fun=bm.surrogate.relu_grad, gif_pars=None,
-               inits: bp.init.Initializer = bp.init.KaimingNormal()):
-    super().__init__()
-
-    # parameters
-    gif_pars = dict() if gif_pars is None else gif_pars
-    self.gif_pars = gif_pars
-    self.num_in = num_in
-    self.num_rec = num_rec
-    self.num_out = num_out
-    self.i2r = bp.layers.Dense(num_in, num_rec, W_initializer=inits)
-    self.r2r = bp.layers.Dense(num_rec, num_rec, W_initializer=inits)
-    self.r2o = bp.layers.Dense(num_rec, num_out, W_initializer=inits)
-    self.ext = bp.neurons.Leaky(num_rec, tau=tau_ext)
-    self.r = GIF(num_rec, V_rest=0., V_th_inf=1.,
-                 spike_fun=spike_fun,
-                 V_initializer=bp.init.ZeroInit(),
-                 Vth_initializer=bp.init.OneInit(1.), **gif_pars)
-    self.o = bp.neurons.Leaky(num_out, tau=tau_o)
-
-  def update(self, spikes):
-    ext = self.ext(self.i2r(spikes) + self.r2r(self.r.spike.value))
-    return self.o(self.r2o(self.r(ext)))
-
-
 if __name__ == '__main__':
   ds = DMS(dt=bm.dt, mode='spiking', num_trial=64 * 100, bg_fr=1.)
   _loader = bd.cognitive.TaskLoader(ds, batch_size=64, data_first_axis='T')
 
-  # Adaptive spiking pattern
-  gif_pars = dict(Ath=1, A1=0., A2=-0.1, adaptive_th=False, tau_I2=2e3, tau_I1=10., v_scale_var=True)
-
-  # Tonic bursting pattern
-  # gif_pars = dict(Ath=0.1, A1=8., A2=-0.6, adaptive_th=False, tau_I2=1e3, tau_I1=10., v_scale_var=True)
-
-  net = GLIF_Exp(num_in=ds.num_inputs, num_rec=100, num_out=ds.num_outputs, tau_ext=1e2,
-                 inits=bp.init.KaimingNormal(distribution='normal', scale=0.2),
+  num_exc = 80
+  num_inh = 20
+  gif_pars = dict(Ath=1, A2=-0.6, adaptive_th=False, tau_I1=10., v_scale_var=True,
+                  tau_I2=bm.random.uniform(100, 3000, num_exc + num_inh),
+                  A1=bm.concat([bm.zeros(num_exc), bm.ones(num_inh)]))
+  net = GLIF_Net(num_in=ds.num_inputs,
+                 num_exc=num_exc,
+                 num_inh=num_inh,
+                 num_out=ds.num_outputs,
+                 tau_ext=1e2,
+                 inits=bp.init.KaimingNormal(distribution='normal', scale=0.4),
                  gif_pars=gif_pars)
 
   trainer = Trainer(net, ds.t_test, mem_reg=True, lr=1e-3)
   bptt(_loader, trainer, fn=None, n_epoch=5)
-
   utils.verify_lif(net, ds, fn=None, num_show=1, sps_inc=2.)
 

@@ -126,7 +126,7 @@ class Decoder(object):
         hmms_order = {phoneme: i for i, phoneme in enumerate(hmms)}
 
         # build network structure
-        with open(os.path.join("..", "data", "hmm", leaves_path)) as fr:
+        with open(os.path.join("../..", "data", "hmm", leaves_path)) as fr:
             network = []
             for i, line in enumerate(fr.readlines()):
                 params = line.strip().split(",")
