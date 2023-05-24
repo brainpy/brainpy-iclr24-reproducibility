@@ -21,7 +21,7 @@ for num_hidden in ${num_hidden_list[@]};
         -wrec_connectivity $wrec_connectivity \
         -epoch 1 \
         -lr 0.1 \
-        -comp_type 'sparse' \
+        -comp_type 'jit-v1' \
         -gpu-id '0' \
         -save
   done
@@ -41,7 +41,7 @@ for num_hidden in ${num_hidden_list[@]};
         -wrec_connectivity $wrec_connectivity \
         -epoch 1 \
         -lr 0.1 \
-        -comp_type 'sparse' \
+        -comp_type 'jit-v1' \
         -gpu-id '0' \
         -save
   done
