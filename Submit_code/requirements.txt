@@ -1,5 +1,5 @@
-brainpy==2.4.1
-brainpylib==0.1.9
+brainpy
+brainpylib
 brainpy-datasets==0.0.0.6
 hdf5storage==0.1.19
 jax==0.4.10

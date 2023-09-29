@@ -7,6 +7,12 @@ pip install -r requirements.txt
 ```
 If using GPU, please install jax[cuda] version in advance according to the JAX official guide.
 
+
+
+
+
+
+
 ## Usage
 All the files are organized in the following structure:
 ```
