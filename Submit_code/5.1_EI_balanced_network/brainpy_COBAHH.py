@@ -26,7 +26,7 @@ we = 6.  # excitatory synaptic conductance [nS]
 wi = 67.  # inhibitory synaptic conductance [nS]
 
 
-class HH(bp.NeuGroup):
+class HH(bp.dyn.NeuDyn):
   def __init__(self, size, method='exp_auto'):
     super(HH, self).__init__(size)
 
@@ -76,7 +76,7 @@ class HH(bp.NeuGroup):
     self.input[:] = 0.
 
 
-class COBAHH(bp.Network):
+class COBAHH(bp.DynSysGroup):
   def __init__(self, scale=1., method='exp_auto'):
     num_exc = int(3200 * scale)
     num_inh = int(800 * scale)

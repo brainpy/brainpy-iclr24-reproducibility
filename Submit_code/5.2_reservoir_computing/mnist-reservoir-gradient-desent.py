@@ -17,15 +17,15 @@ train_dataset = bd.vision.FashionMNIST(root, split='train', download=True)
 test_dataset = bd.vision.FashionMNIST(root, split='test', download=True)
 
 # Standardize data
-x_train = np.array(train_dataset.data, dtype=bm.float_)
-x_train = x_train.reshape((-1, 28, 28)) / 255
+x_train = np.array(train_dataset.data.reshape((-1, 28, 28)) / 255, dtype=bm.float_)
 y_train = np.array(train_dataset.targets, dtype=bm.int_)
-x_test = np.array(test_dataset.data, dtype=bm.float_)
-x_test = x_test.reshape((-1, 28, 28)) / 255
+x_test = np.array(test_dataset.data.reshape((-1, 28, 28)) / 255, dtype=bm.float_)
 y_test = np.array(test_dataset.targets, dtype=bm.int_)
+
 
 parser = argparse.ArgumentParser(description='Classify MNIST')
 parser.add_argument('-num_hidden', default=2000, type=int, help='simulating time-steps')
+parser.add_argument('-batch_size', default=128, type=int, help='batch size')
 parser.add_argument('-num_layer', default=1, type=int, help='number of layers')
 parser.add_argument('-win_scale', default=0.6, type=float)
 parser.add_argument('-out_layers', default='-1', type=str)
@@ -38,8 +38,7 @@ parser.add_argument('-leaky_rate', default=0.6, type=float)
 parser.add_argument('-win_connectivity', default=0.1, type=float)
 parser.add_argument('-wrec_connectivity', default=0.1, type=float)
 parser.add_argument('-lr', default=0.1, type=float)
-parser.add_argument('-train_stage', default='final_step', type=str)
-parser.add_argument('-comp_type', default='dualjit-v1', type=str)
+parser.add_argument('-comp_type', default='jit-v1', type=str)
 parser.add_argument('-epoch', default=5, type=int)
 parser.add_argument('-gpu-id', default='0', type=str, help='gpu id')
 parser.add_argument('-save', action='store_true')
@@ -53,8 +52,6 @@ os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_id
 
 num_in = 28
 num_out = 10
-
-assert args.train_stage in ['final_step', 'all_steps']
 
 if args.save:
   out_path = f'logs/force-mnist/{args.comp_type}/'
@@ -107,35 +104,33 @@ else:
   raise ValueError
 
 readout = bp.layers.Dense(args.num_hidden * len(out_layers), num_out, b_initializer=None, mode=bm.training_mode)
-rls = bp.algorithms.RLS(alpha=args.lr)
-rls.register_target(readout.num_in)
+opt = bp.optim.Adam(lr=2e-4, train_vars=readout.train_vars())
+
+
+def loss_fun(inp, targets):
+  out = readout(inp)
+  loss = bp.losses.cross_entropy_loss(out, targets)
+  return loss
+
+
+grad_fun = bm.grad(loss_fun, grad_vars=readout.train_vars(), return_value=True)
 
 
 @bm.jit
 def train_step(xs, y):
-  reservoir.reset_state(1)
+  reservoir.reset(xs.shape[0])
   y = bm.expand_dims(bm.one_hot(y, num_out, dtype=bm.float_), 0)
-  if args.train_stage == 'final_step':
-    for x in xs:
-      o = reservoir(x)
-    o = bm.concatenate([o[i] for i in out_layers], axis=1)
-    pred = readout(o)
-    dw = rls(y, o, pred)
-    readout.W += dw
-  elif args.train_stage == 'all_steps':
-    for x in xs:
-      o = reservoir(x)
-      o = bm.concatenate([o[i] for i in out_layers], axis=1)
-      pred = readout(o)
-      dw = rls(y, o, pred)
-      readout.W += dw
-  else:
-    raise ValueError
+  for x in bm.transpose(xs, (1, 0, 2)):
+    o = reservoir(x)
+  o = bm.concatenate([o[i] for i in out_layers], axis=1)
+  grads, l = grad_fun(o, y)
+  opt.update(grads)
+  return l
 
 
 @bm.jit
 def predict(xs):
-  reservoir.reset_state(xs.shape[0])
+  reservoir.reset(xs.shape[0])
   for x in xs.transpose(1, 0, 2):
     o = reservoir(x)
   o = bm.concatenate([o[i] for i in out_layers], axis=1)
@@ -155,12 +150,20 @@ def train_one_epoch(epoch):
   global acc_max
 
   # # training
-  for i in tqdm(range(x_train.shape[0]), desc='Training'):
-    train_step(bm.asarray(x_train[i]), bm.asarray(y_train[i]))
+  seed = np.random.randint(0, 10000)
+  np.random.RandomState(seed).shuffle(x_train)
+  np.random.RandomState(seed).shuffle(y_train)
+
+  tqdm_loder = tqdm(range(0, x_train.shape[0], args.batch_size), desc='Training')
+  for i in tqdm_loder:
+    x = bm.asarray(x_train[i: i + args.batch_size])
+    y = bm.asarray(y_train[i: i + args.batch_size])
+    l = train_step(x, y)
+    tqdm_loder.set_description(f'Loss = {l:.6f}')
 
   # verifying
   preds = []
-  batch_size = 5
+  batch_size = args.batch_size
   for i in tqdm(range(0, x_train.shape[0], batch_size), desc='Verifying'):
     preds.append(predict(bm.asarray(x_train[i: i + batch_size])))
   preds = bm.concatenate(preds)
@@ -174,11 +177,14 @@ def train_one_epoch(epoch):
   test_acc = bm.mean(preds == bm.asarray(y_test, dtype=bm.int_))
   print(f'Train accuracy {train_acc}, Test accuracy {test_acc}')
 
+  opt.lr.step_epoch()
+
   if args.save and acc_max < test_acc:
     acc_max = test_acc
     bp.checkpoints.save(out_path,
                         {'reservoir': reservoir.state_dict(),
                          'readout': readout.state_dict(),
+                         'opt': opt.state_dict(),
                          'args': args.__dict__,
                          'acc': float(test_acc)},
                         step=epoch,

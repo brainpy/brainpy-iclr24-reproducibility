@@ -1,17 +1,21 @@
+import sys
+
 from brian2 import *
 
+if sys.argv[1] == 'cuda_standalone':
+  import brian2cuda
+  set_device("cuda_standalone", build_on_run=False)
+
+else:
+  clear_cache('cython')
+
 defaultclock.dt = 0.1 * ms
-# clear_cache('cython')
-# set_device('cpp_standalone', directory='brian2_COBA')
 
 
-
-def run_(scale=1., res_dict=None, tstop=1000.):
+def run_(scale=1.):
   start_scope()
   device.reinit()
   device.activate()
-
-  # prefs.codegen.target = "cython"
 
   taum = 20 * ms
   taue = 5 * ms
@@ -47,28 +51,17 @@ def run_(scale=1., res_dict=None, tstop=1000.):
   Ci.connect(p=0.02)
 
   t1 = time.time()
-  run(tstop * ms, report='text')
+  run(0.1 * ms)
   t2 = time.time()
-  print('Done in', t2 - t1)
 
-  if res_dict is not None:
-    res_dict['brain2'].append({'num_neuron': num_exc + num_inh,
-                               'sim_len': tstop,
-                               'num_thread': 1,
-                               'sim_time': t2 - t1,
-                               'dt': 0.1})
+  # t3 = time.time()
+  # run(0.1 * ms)
+  # t4 = time.time()
+  # compilation_time = (t2 - t1) - (t4 - t3)
 
-
-run_(scale=10, tstop=5000.)
+  compilation_time = (t2 - t1)
+  print(f'Network size = {num_exc + num_inh}, Compilation spend {compilation_time} s')
 
 
 if __name__ == '__main__':
-  import json
-
-  speed_res = {'brain2': []}
-  for scale in [1, 1, 2, 4, 6, 8, 10]:
-    for stim in [5. * 1e3]:
-      run_(scale=scale, res_dict=speed_res, tstop=stim)
-
-  with open('speed_results/brian2-2.json', 'w') as f:
-    json.dump(speed_res, f, indent=2)
+  run_(scale=float(sys.argv[2]))

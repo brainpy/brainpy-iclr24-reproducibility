@@ -1,12 +1,12 @@
-import time
 import os
+import time
 
 import brainpy as bp
 import brainpy.math as bm
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.io import loadmat
 import psutil
+from scipy.io import loadmat
 
 auto_merging = True
 evaluate_memory = False
@@ -25,10 +25,9 @@ def profile(func):
     mem_before = process_memory()
     result = func(*args, **kwargs)
     mem_after = process_memory()
-    print(f"consumed memory (GB): "
-          f"{mem_before / 1000000000}, "
-          f"{mem_after / 1000000000}, "
-          f"{(mem_after - mem_before) / 1000000000}")
+    print(f'Memory before run {mem_before / 1000000000} GB, '
+          f'memory after run {mem_after / 1000000000} GB, '
+          f'memory used {(mem_after - mem_before) / 1000000000} GB')
 
     return result
 

@@ -141,8 +141,8 @@ elif args.comp_type == 'dense':
   )
 else:
   raise ValueError
-readout = bp.layers.Dense(args.num_hidden * len(out_layers), num_out,
-                          b_initializer=None, mode=bm.training_mode)
+readout = bp.dnn.Dense(args.num_hidden * len(out_layers), num_out,
+                       b_initializer=None, mode=bm.training_mode)
 rls = bp.algorithms.RLS(alpha=args.lr)
 rls.register_target(readout.num_in)
 
@@ -254,4 +254,3 @@ for ii in range(args.epoch):
                                 'stream_test_acc': float(stream_test_acc)},
                                overwrite=True)
     stream_test_acc_max = stream_test_acc
-

@@ -176,3 +176,4 @@ cython_debug/
 
 /example2_bs_model_for_ai/data/
 /example4_jitconn_reservoir/logs/
+/Submit_code/5.2_reservoir_computing/data/
