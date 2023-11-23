@@ -1,0 +1,39 @@
+{
+  "pytorch": [
+    {
+      "num_neuron": 4000,
+      "sim_len": 5000.0,
+      "num_thread": 4,
+      "sim_time": 305.0248212814331,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 8000,
+      "sim_len": 5000.0,
+      "num_thread": 2,
+      "sim_time": 1146.2340173721313,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 16000,
+      "sim_len": 5000.0,
+      "num_thread": 4,
+      "sim_time": 4653.623020887375,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 24000,
+      "sim_len": 5000.0,
+      "num_thread": 4,
+      "sim_time": 9614.680290937424,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 32000,
+      "sim_len": 5000.0,
+      "num_thread": 4,
+      "sim_time": 17231.48436665535,
+      "dt": 0.1
+    }
+  ]
+}

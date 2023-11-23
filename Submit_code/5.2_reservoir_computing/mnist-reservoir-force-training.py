@@ -24,7 +24,7 @@ x_test = np.array(test_dataset.data, dtype=bm.float_)
 x_test = x_test.reshape((-1, 28, 28)) / 255
 y_test = np.array(test_dataset.targets, dtype=bm.int_)
 
-parser = argparse.ArgumentParser(description='Classify MNIST')
+parser = argparse.ArgumentParser(description='Classify CIFAR')
 parser.add_argument('-num_hidden', default=2000, type=int, help='simulating time-steps')
 parser.add_argument('-num_layer', default=1, type=int, help='number of layers')
 parser.add_argument('-win_scale', default=0.6, type=float)

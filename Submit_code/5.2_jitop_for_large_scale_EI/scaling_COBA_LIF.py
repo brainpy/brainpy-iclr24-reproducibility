@@ -6,6 +6,8 @@ import jax
 import numpy as np
 import pynvml
 
+bm.set_platform('gpu')
+
 # # if you want to see GPU memory usage
 bm.disable_gpu_memory_preallocation()
 

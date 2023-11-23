@@ -1,0 +1,67 @@
+{
+  "brainpy": [
+    {
+      "num_neuron": 4000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 17.030091047286987,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 8000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 28.472941875457764,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 16000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 44.859604835510254,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 24000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 59.384095191955566,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 32000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 72.8950355052948,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 40000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 88.48172664642334,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 60000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 116.80178594589233,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 80000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 145.80083227157593,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 120000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 212.40068745613098,
+      "dt": 0.1
+    }
+  ]
+}
