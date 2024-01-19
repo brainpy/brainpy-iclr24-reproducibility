@@ -1,4 +1,4 @@
-# Code for the paper "BrainPy: a differentiable brain simulator bridging brain simulation and brain-inspired computing"
+# Code for the ICLR 2024 paper "A differentiable brain simulator bridging brain simulation and brain-inspired computing"
 
 
 ![BrainPy](./figures/design.png)
