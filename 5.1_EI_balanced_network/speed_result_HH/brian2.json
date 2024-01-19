@@ -1,0 +1,58 @@
+{
+  "brian2": [
+    {
+      "num_neuron": 4000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 67.14350914955139
+    },
+    {
+      "num_neuron": 8000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 81.8475911617279
+    },
+    {
+      "num_neuron": 16000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 158.28982138633728
+    },
+    {
+      "num_neuron": 24000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 240.80338549613953
+    },
+    {
+      "num_neuron": 32000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 324.415940284729
+    },
+    {
+      "num_neuron": 40000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 404.8351092338562
+    },
+    {
+      "num_neuron": 60000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 611.1274354457855
+    },
+    {
+      "num_neuron": 80000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 799.4942393302917
+    },
+    {
+      "num_neuron": 120000,
+      "sim_len": 10000.0,
+      "num_thread": 1,
+      "sim_time": 1215.9056570529938
+    }
+  ]
+}

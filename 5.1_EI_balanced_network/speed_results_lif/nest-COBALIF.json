@@ -1,0 +1,46 @@
+{
+  "nest": [
+    {
+      "num_neuron": 4000,
+      "sim_len": 5000.0,
+      "num_thread": 1,
+      "sim_time": 7.910430134041235,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 8000,
+      "sim_len": 5000.0,
+      "num_thread": 1,
+      "sim_time": 16.914343246957287,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 16000,
+      "sim_len": 5000.0,
+      "num_thread": 1,
+      "sim_time": 37.218520649010316,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 24000,
+      "sim_len": 5000.0,
+      "num_thread": 1,
+      "sim_time": 61.26690118503757,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 32000,
+      "sim_len": 5000.0,
+      "num_thread": 1,
+      "sim_time": 87.86052260105498,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 40000,
+      "sim_len": 5000.0,
+      "num_thread": 1,
+      "sim_time": 117.02598931198008,
+      "dt": 0.1
+    }
+  ]
+}

@@ -1,9 +1,0 @@
-nest param_scale1.sli COBAHH_nest.sli
-nest param_scale2.sli COBAHH_nest.sli
-nest param_scale4.sli COBAHH_nest.sli
-nest param_scale6.sli COBAHH_nest.sli
-nest param_scale8.sli COBAHH_nest.sli
-nest param_scale10.sli COBAHH_nest.sli
-nest param_scale15.sli COBAHH_nest.sli
-nest param_scale20.sli COBAHH_nest.sli
-nest param_scale30.sli COBAHH_nest.sli

@@ -1,0 +1,53 @@
+{
+  "annarchy": [
+    {
+      "num_neuron": 4000,
+      "sim_len": 5000.0,
+      "sim_time": 10.488820552825928,
+      "sim_time_without_compile": 1.784454584121704,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 4000,
+      "sim_len": 5000.0,
+      "sim_time": 2.504560947418213,
+      "sim_time_without_compile": 1.8968031406402588,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 8000,
+      "sim_len": 5000.0,
+      "sim_time": 15.087600708007812,
+      "sim_time_without_compile": 5.63056755065918,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 16000,
+      "sim_len": 5000.0,
+      "sim_time": 31.75044822692871,
+      "sim_time_without_compile": 18.97818946838379,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 24000,
+      "sim_len": 5000.0,
+      "sim_time": 23.72608470916748,
+      "sim_time_without_compile": 5.320714235305786,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 32000,
+      "sim_len": 5000.0,
+      "sim_time": 32.90032458305359,
+      "sim_time_without_compile": 6.9941325187683105,
+      "dt": 0.1
+    },
+    {
+      "num_neuron": 40000,
+      "sim_len": 5000.0,
+      "sim_time": 46.719038009643555,
+      "sim_time_without_compile": 9.10242748260498,
+      "dt": 0.1
+    }
+  ]
+}
