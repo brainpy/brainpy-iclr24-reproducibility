@@ -35,7 +35,18 @@ $ pip install --upgrade brainpylib-cu12x
 $ pip install --upgrade brainpylib-cu11x
 ```
 
-
+## Citation
+If this paper has been significant in your research, and you would like to acknowledge the project in your academic publication, we suggest citing the following papers:
+```bibtex
+@misc{wang2023differentiable,
+      title={A differentiable brain simulator bridging brain simulation and brain-inspired computing}, 
+      author={Chaoming Wang and Tianqiu Zhang and Sichao He and Yifeng Gong and Hongyaoxing Gu and Shangyang Li and Si Wu},
+      year={2023},
+      eprint={2311.05106},
+      archivePrefix={arXiv},
+      primaryClass={cs.NE}
+}
+```
 
 
 ## Usage

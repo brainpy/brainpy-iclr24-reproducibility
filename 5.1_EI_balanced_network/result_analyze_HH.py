@@ -7,7 +7,6 @@ import brainpy as bp
 import os
 
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 import numpy as np
 
 
@@ -48,11 +47,6 @@ plt.xticks([0, 20000, 40000, 60000, 80000, 100000, 120000])
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
 plt.xlabel('Number of neurons')
-# plt.ylabel('Simulation time [s]')
-# lg = plt.legend(fontsize=15, loc='upper right')
-# lg = plt.legend(loc=2, bbox_to_anchor=(1.05, 1.0), borderaxespad=0., fontsize=25)
-# lg.get_frame().set_alpha(0.3)
 plt.title('COBA HH Network')
 plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0))
-# plt.tight_layout()
 plt.show()
