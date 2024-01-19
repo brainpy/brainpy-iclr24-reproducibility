@@ -1,5 +1,8 @@
 # Code for the paper "BrainPy: a differentiable brain simulator bridging brain simulation and brain-inspired computing"
 
+
+![BrainPy](./figures/design.png)
+
 ## Requirements
 The Python version is 3.10, most of the dependencies can be installed by running:
 ```
