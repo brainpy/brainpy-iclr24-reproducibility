@@ -1,7 +1,12 @@
-# Code for the ICLR 2024 paper "A differentiable brain simulator bridging brain simulation and brain-inspired computing"
+# BrainPy ICLR 2024 paper
 
+This is the official implementation of our ICLR 2024 paper "[A differentiable brain simulator bridging brain simulation and brain-inspired computing](https://openreview.net/forum?id=AU2gS9ut61)".
 
 ![BrainPy](./figures/design.png)
+![BrainPy](./figures/align-pre-align-post.png)
+
+## Abstract
+Brain simulation builds dynamical models to mimic the structure and functions of the brain, while brain-inspired computing (BIC) develops intelligent systems by learning from the structure and functions of the brain. The two fields are intertwined and should share a common programming framework to facilitate each other's development. However, none of the existing software in the fields can achieve this goal, because traditional brain simulators lack differentiability for training, while existing deep learning (DL) frameworks fail to capture the biophysical realism and complexity of brain dynamics. In this paper, we introduce BrainPy, a differentiable brain simulator developed using JAX and XLA, with the aim of bridging the gap between brain simulation and BIC. BrainPy expands upon the functionalities of JAX, a powerful AI framework, by introducing complete capabilities for flexible, efficient, and scalable brain simulation. It offers a range of sparse and event-driven operators for efficient and scalable brain simulation, an abstraction for managing the intricacies of synaptic computations, a modular and flexible interface for constructing multi-scale brain models, and an object-oriented just-in-time compilation approach to handle the memory-intensive nature of brain dynamics. We showcase the efficiency and scalability of BrainPy on benchmark tasks, highlight its differentiable simulation for biologically plausible spiking models, and discuss its potential to support research at the intersection of brain simulation and BIC.
 
 ## Requirements
 The Python version is 3.10, most of the dependencies can be installed by running:
@@ -84,6 +89,21 @@ Submit_code
 ├── appendix_auto-syn-merging
 │   ├── large_scale_EI.py
 │   ├── Joglekar_2018_data
+├── appendix_spiking_neural_network_training
+│   ├── BrainPy_fashion_mnist.py
+│   ├── Norse_fashion_mnist.py
+│   ├── snnTorch_fashion_mnist.py
+│   ├── SpikingJelly_fashion_mnist.py
+│   ├── brainpy_VGG-SNN.py
+├── compilation_of_multiarea_net
+│   ├── brainpy_code.py
+│   ├── brian2_code.py
+├── compilation_time_of_EI_net
+│   ├── brainpy_COBAlif.py
+│   ├── brian2_COBAlif.py
+│   ├── run_brian2.sh
+├── dmnet_with_parallel_computing
+│   ├── decision-making-tpu.ipynb
 ```
 
 ### 5.1: EI balanced network
@@ -109,12 +129,16 @@ python jit_conn_comparison.py
 ```
 
 ### Section 5.2: Reservoir computing
-The KTH dataset can be run by:
+In order to run the reservoir computing, the KTH dataset and the MNIST dataset should be downloaded in advance. 
+The KTH dataset can be downloaded from [here](https://paperswithcode.com/dataset/kth) and the MNIST dataset can be downloaded from [here](http://yann.lecun.com/exdb/mnist/).
+The KTH dataset and the MNIST dataset should be placed in the `5.2_reservoir_computing` folder.
+
+The model trained on KTH dataset can be run by:
 ```
 bash run-KTH.sh
 ```
 
-The MNIST dataset can be run by:
+The model trained on MNIST dataset can be run by:
 ```
 bash run-mnist.sh
 ```
